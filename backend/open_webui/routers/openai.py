@@ -4,10 +4,11 @@ import json
 import logging
 from pathlib import Path
 from typing import Literal, Optional, overload
-
+import os
 import aiohttp
 from aiocache import cached
 import requests
+import time
 
 
 from fastapi import Depends, FastAPI, HTTPException, Request, APIRouter
@@ -42,7 +43,7 @@ from open_webui.utils.access_control import has_access
 
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["OPENAI"])
-
+conversation_counter = 1
 
 ##########################################
 #
@@ -539,6 +540,44 @@ async def verify_connection(
             error_detail = f"Unexpected error: {str(e)}"
             raise HTTPException(status_code=500, detail=error_detail)
 
+def printLog(log_type, *args, **kwargs):
+    """
+    :param log_type: 'Request' or 'Response'，
+    """
+    global conversation_counter
+
+    def decode_unicode(arg):
+        if isinstance(arg, str):
+            try:
+                return arg.encode('utf-8').decode('unicode_escape')
+            except (UnicodeDecodeError, UnicodeEncodeError):
+                return arg
+        return arg
+
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    
+    if log_type == "Request":
+        args = tuple(decode_unicode(arg) for arg in args)
+        print('conversation_counter', conversation_counter)
+        if conversation_counter == 1:  # First call, start of conversation
+            header = "\n=== New Conversation Start ===\n"
+            conversation_counter += 1  # Move to next stage
+        else:  # Second call, end of conversation
+            header = "\n=== Conversation Completed  ===\n"
+            conversation_counter = 1  # Reset counter for the next conversation
+    else:
+        header = ""
+
+    log_output = (
+        f"{header}"
+        f"\n========== {log_type} Log ==========\n"
+        f"[{timestamp}] {log_type}:\n"
+        f"{' '.join(map(str, args))}\n"
+        f"=================================\n"
+    )
+
+    with open('output.log', 'a', encoding='utf-8', errors='replace') as file:
+        file.write(log_output + "\n")
 
 @router.post("/chat/completions")
 async def generate_chat_completion(
@@ -558,6 +597,7 @@ async def generate_chat_completion(
     model_id = form_data.get("model")
     model_info = Models.get_model_by_id(model_id)
 
+    print('payload', payload)
     # Check model info and override the payload
     if model_info:
         if model_info.base_model_id:
@@ -566,7 +606,9 @@ async def generate_chat_completion(
 
         params = model_info.params.model_dump()
         payload = apply_model_params_to_body_openai(params, payload)
+        print('apply_model_params_to_body_openai', payload)
         payload = apply_model_system_prompt_to_body(params, payload, metadata, user)
+        print('apply_model_system_prompt_to_body', payload)
 
         # Check if user has access to the model
         if not bypass_filter and user.role == "user":
@@ -636,7 +678,8 @@ async def generate_chat_completion(
 
     # Convert the modified body back to JSON
     payload = json.dumps(payload)
-    print('payload -- backend', payload)
+    print('payload -- send to backend finally', payload)
+    printLog("Request", payload)
 
     r = None
     session = None
@@ -679,8 +722,33 @@ async def generate_chat_completion(
         # Check if response is SSE
         if "text/event-stream" in r.headers.get("Content-Type", ""):
             streaming = True
+            async def content_generator():
+                async for chunk in r.content.iter_any():
+                    try:
+                        decoded_chunk = chunk.decode('ISO-8859-1').encode('utf-8').decode('utf-8')
+                        json_strings = decoded_chunk.replace('data: ', '').strip()
+                        for json_string in json_strings.split("\n"): 
+                            if json_string:
+                                try:
+                                    # Check if the chunk is a valid JSON object
+                                    json_data = json.loads(json_string)
+                                    content = json_data['choices'][0]['delta']['content']
+                                    content = content.encode('ISO-8859-1').decode('utf-8', errors='replace')
+                                    json_data['choices'][0]['delta']['content'] = content
+                                    json_data_str = json.dumps(json_data, ensure_ascii=False)
+                                    print('json_data_str', json_data_str, json_data)
+                                    printLog("Response", json_data_str)
+                                except json.JSONDecodeError as e:
+                                    printLog("Response", f"JSON decode error: {e}")
+                        else:
+                            print("Skipped non-data chunk:", decoded_chunk) 
+                    except Exception as e:
+                        printLog("Response", f"error: {e}")
+                    yield chunk
+
+
             return StreamingResponse(
-                r.content,
+                content_generator(), 
                 status_code=r.status,
                 headers=dict(r.headers),
                 background=BackgroundTask(
