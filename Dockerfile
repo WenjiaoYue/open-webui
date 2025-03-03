@@ -27,6 +27,9 @@ ARG BUILD_HASH
 WORKDIR /app
 
 COPY package.json package-lock.json ./
+
+RUN npm install onnxruntime-node --onnxruntime-node-install-cuda=skip
+RUN npm i @huggingface/transformers
 RUN npm ci
 
 COPY . .
