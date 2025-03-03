@@ -33,7 +33,7 @@
 	import ChevronDown from '../icons/ChevronDown.svelte';
 	import Spinner from './Spinner.svelte';
 
-	export let open = false;
+	export let open = true;
 	export let id = '';
 	export let className = '';
 	export let buttonClassName =
@@ -45,6 +45,8 @@
 
 	export let disabled = false;
 	export let hide = false;
+	
+	$: open? console.log('log', open, attributes, grow, disabled, hide) : console.log('log', open, attributes, grow, disabled, hide);
 </script>
 
 <div {id} class={className}>

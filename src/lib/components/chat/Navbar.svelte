@@ -26,6 +26,7 @@
 	import AdjustmentsHorizontal from '../icons/AdjustmentsHorizontal.svelte';
 
 	import PencilSquare from '../icons/PencilSquare.svelte';
+	import { userSignOut } from '$lib/apis/auths';
 
 	const i18n = getContext('i18n');
 
@@ -45,11 +46,12 @@
 
 <nav class="sticky top-0 z-30 w-full px-1.5 py-1.5 -mb-8 flex items-center drag-region">
 	<div
-		class=" bg-linear-to-b via-50% from-white via-white to-transparent dark:from-gray-900 dark:via-gray-900 dark:to-transparent pointer-events-none absolute inset-0 -bottom-7 z-[-1]"
+		class=" bg-gradient-to-b via-50% from-white via-white to-transparent dark:from-gray-900 dark:via-gray-900 dark:to-transparent pointer-events-none absolute inset-0 -bottom-7 z-[-1] blur"
 	></div>
 
 	<div class=" flex max-w-full w-full mx-auto px-1 pt-0.5 bg-transparent">
 		<div class="flex items-center w-full max-w-full">
+			{#if $user.name !== 'Guest'}
 			<div
 				class="{$showSidebar
 					? 'md:hidden'
@@ -68,6 +70,7 @@
 					</div>
 				</button>
 			</div>
+			{/if}
 
 			<div
 				class="flex-1 overflow-hidden max-w-full py-0.5
@@ -79,6 +82,7 @@
 				{/if}
 			</div>
 
+			
 			<div class="self-start flex flex-none items-center text-gray-600 dark:text-gray-400">
 				<!-- <div class="md:hidden flex self-center w-[1px] h-5 mx-2 bg-gray-300 dark:bg-stone-700" /> -->
 				{#if shareEnabled && chat && (chat.id || $temporaryChatEnabled)}
@@ -130,7 +134,19 @@
 					</Tooltip>
 				{/if}
 
-				{#if !$mobile && ($user.role === 'admin' || $user?.permissions?.chat?.controls)}
+				{#if $user.name === 'Guest'}
+					<button
+						class="flex  py-2 px-3 w-full bg-[#1662c7] text-white hover:bg-gray-500 dark:hover:bg-gray-800 transition"
+						on:click={async () => {
+							await userSignOut();
+							localStorage.removeItem('token');
+							location.href = '/auth';
+						}}
+					>
+						signin
+					</button>
+					{:else}
+					{#if !$mobile && ($user.role === 'admin' || $user?.permissions?.chat?.controls)}
 					<Tooltip content={$i18n.t('Controls')}>
 						<button
 							class=" flex cursor-pointer px-2 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-850 transition"
@@ -188,6 +204,8 @@
 						</button>
 					</UserMenu>
 				{/if}
+				{/if}
+			
 			</div>
 		</div>
 	</div>

@@ -1,4 +1,8 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEBUI_API_BASE_URL, OPEA_API_BASE_URL } from '$lib/constants';
+import sjcl from "sjcl";
+
+const secretKey = "INTEL_CRETS";
+
 
 export const getAdminDetails = async (token: string) => {
 	let error = null;
@@ -82,65 +86,108 @@ export const updateAdminConfig = async (token: string, body: object) => {
 	return res;
 };
 
-export const getSessionUser = async (token: string) => {
-	let error = null;
+// export const getSessionUser = async (token: string) => {
+// 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/`, {
-		method: 'GET',
+// 	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/`, {
+// 		method: 'GET',
+// 		headers: {
+// 			'Content-Type': 'application/json',
+// 			Authorization: `Bearer ${token}`
+// 		},
+// 		credentials: 'include'
+// 	})
+// 		.then(async (res) => {
+// 			if (!res.ok) throw await res.json();
+// 			return res.json();
+// 		})
+// 		.catch((err) => {
+// 			console.log(err);
+// 			error = err.detail;
+// 			return null;
+// 		});
+
+// 	if (error) {
+// 		throw error;
+// 	}
+
+// 	return res;
+// };
+
+export const getSessionUser = async (token: string) => {
+
+	const init: RequestInit = {
+		method: "GET",
 		headers: {
 			'Content-Type': 'application/json',
 			Authorization: `Bearer ${token}`
 		},
-		credentials: 'include'
-	})
-		.then(async (res) => {
-			if (!res.ok) throw await res.json();
-			return res.json();
-		})
-		.catch((err) => {
-			console.log(err);
-			error = err.detail;
-			return null;
-		});
+	};
 
-	if (error) {
-		throw error;
-	}
+	return fetchFunc(`${WEBUI_API_BASE_URL}/auths/`, init);
+}
 
-	return res;
-};
+
 
 export const ldapUserSignIn = async (user: string, password: string) => {
-	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/ldap`, {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json'
-		},
-		credentials: 'include',
-		body: JSON.stringify({
-			user: user,
-			password: password
-		})
-	})
-		.then(async (res) => {
-			if (!res.ok) throw await res.json();
-			return res.json();
-		})
-		.catch((err) => {
-			console.log(err);
+	const encryptedPassword = sjcl.encrypt(secretKey, password);
+	console.log("encryptedPassword", encryptedPassword);
 
-			error = err.detail;
-			return null;
-		});
+	const init: RequestInit = {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ account: user, password: encryptedPassword }),
+	};
 
-	if (error) {
-		throw error;
+	return fetchFunc(`${OPEA_API_BASE_URL}/login`, init);
+}
+
+async function fetchFunc(url, init) {
+	try {
+		let response = await fetch(url, init);
+		if (!response.ok) throw response.status;
+
+		return await response.json();
+	} catch (error) {
+		console.error("network error: ", error);
+
+		return undefined;
 	}
+}
 
-	return res;
-};
+// export const ldapUserSignIn = async (user: string, password: string) => {
+// 	let error = null;
+// 	const encryptedPassword = sjcl.encrypt(secretKey, password);
+
+// 	const res = await fetch(`${WEBUI_API_BASE_URL}/login`, {
+// 		method: 'POST',
+// 		headers: {
+// 			'Content-Type': 'application/json'
+// 		},
+// 		credentials: 'include',
+// 		body: JSON.stringify({
+// 			account: user,
+// 			password: encryptedPassword
+// 		})
+// 	})
+// 		.then(async (res) => {
+// 			if (!res.ok) throw await res.json();
+// 			return res.json();
+// 		})
+// 		.catch((err) => {
+// 			console.log(err);
+
+// 			error = err.detail;
+// 			return null;
+// 		});
+
+// 	if (error) {
+// 		throw error;
+// 	}
+
+// 	return res;
+// };
 
 export const getLdapConfig = async (token: string = '') => {
 	let error = null;
@@ -255,36 +302,56 @@ export const updateLdapServer = async (token: string = '', body: object) => {
 };
 
 export const userSignIn = async (email: string, password: string) => {
-	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/signin`, {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json'
-		},
-		credentials: 'include',
+	const encryptedPassword = sjcl.encrypt(secretKey, password);
+	console.log("encryptedPassword", encryptedPassword);
+
+	const init: RequestInit = {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify({
 			email: email,
 			password: password
-		})
-	})
-		.then(async (res) => {
-			if (!res.ok) throw await res.json();
-			return res.json();
-		})
-		.catch((err) => {
-			console.log(err);
+		}),
+	};
 
-			error = err.detail;
-			return null;
-		});
+	return fetchFunc(`${WEBUI_API_BASE_URL}/auths/signin`, init);
+}
 
-	if (error) {
-		throw error;
-	}
 
-	return res;
-};
+// export const userSignIn = async (email: string, password: string) => {
+
+// 	let error = null;
+
+// 	const res = await fetch(`${WEBUI_API_BASE_URL}/auths/signin`, {
+// 		method: 'POST',
+// 		headers: {
+// 			'Content-Type': 'application/json'
+// 		},
+// 		credentials: 'include',
+// 		body: JSON.stringify({
+// 			email: email,
+// 			password: password
+// 		})
+// 	})
+// 		.then(async (res) => {
+// 			if (!res.ok) throw await res.json();
+// 			return res.json();
+// 		})
+// 		.catch((err) => {
+// 			console.log(err);
+
+// 			error = err.detail;
+// 			return null;
+// 		});
+
+// 	if (error) {
+// 		throw error;
+// 	}
+
+// 	return res;
+
+// };
 
 export const userSignUp = async (
 	name: string,

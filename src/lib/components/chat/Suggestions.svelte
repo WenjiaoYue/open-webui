@@ -42,18 +42,14 @@
 	}
 
 	const getFilteredPrompts = (inputValue) => {
-		if (inputValue.length > 500) {
-			filteredPrompts = [];
-		} else {
-			const newFilteredPrompts = inputValue.trim()
-				? fuse.search(inputValue.trim()).map((result) => result.item)
-				: sortedPrompts;
+		const newFilteredPrompts = inputValue.trim()
+			? fuse.search(inputValue.trim()).map((result) => result.item)
+			: sortedPrompts;
 
-			// Compare with the oldFilteredPrompts
-			// If there's a difference, update array + version
-			if (!arraysEqual(filteredPrompts, newFilteredPrompts)) {
-				filteredPrompts = newFilteredPrompts;
-			}
+		// Compare with the oldFilteredPrompts
+		// If there's a difference, update array + version
+		if (!arraysEqual(filteredPrompts, newFilteredPrompts)) {
+			filteredPrompts = newFilteredPrompts;
 		}
 	};
 
@@ -73,7 +69,7 @@
 		<div
 			class="flex w-full text-center items-center justify-center self-start text-gray-400 dark:text-gray-600"
 		>
-			{$WEBUI_NAME} ‧ v{WEBUI_VERSION}
+			{$i18n.t($WEBUI_NAME)} ‧ v{$i18n.t(WEBUI_VERSION)}
 		</div>
 	{/if}
 </div>
@@ -86,23 +82,23 @@
 				       px-3 py-2 rounded-xl bg-transparent hover:bg-black/5
 				       dark:hover:bg-white/5 transition group"
 				style="animation-delay: {idx * 60}ms"
-				on:click={() => dispatch('select', prompt.content)}
+				on:click={() => dispatch('select', $i18n.t(prompt.content))}
 			>
 				<div class="flex flex-col text-left">
 					{#if prompt.title && prompt.title[0] !== ''}
 						<div
 							class="font-medium dark:text-gray-300 dark:group-hover:text-gray-200 transition line-clamp-1"
 						>
-							{prompt.title[0]}
+							{$i18n.t(prompt.title[0])}
 						</div>
 						<div class="text-xs text-gray-500 font-normal line-clamp-1">
-							{prompt.title[1]}
+							{$i18n.t(prompt.title[1])}
 						</div>
 					{:else}
 						<div
 							class="font-medium dark:text-gray-300 dark:group-hover:text-gray-200 transition line-clamp-1"
 						>
-							{prompt.content}
+							{$i18n.t(prompt.content)}
 						</div>
 						<div class="text-xs text-gray-500 font-normal line-clamp-1">{$i18n.t('Prompt')}</div>
 					{/if}

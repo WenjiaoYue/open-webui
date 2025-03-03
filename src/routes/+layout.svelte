@@ -223,11 +223,11 @@
 		if ((event.chat_id !== $chatId && !$temporaryChatEnabled) || isFocused) {
 			if (type === 'chat:completion') {
 				const { done, content, title } = data;
-
+				const agentName = $i18n.t('DCAIAgent');
 				if (done) {
 					if ($isLastActiveTab) {
 						if ($settings?.notificationEnabled ?? false) {
-							new Notification(`${title} | Open WebUI`, {
+							new Notification(`${title} | ${agentName}`, {
 								body: content,
 								icon: `${WEBUI_BASE_URL}/static/favicon.png`
 							});
@@ -373,7 +373,9 @@
 			if (type === 'message') {
 				if ($isLastActiveTab) {
 					if ($settings?.notificationEnabled ?? false) {
-						new Notification(`${data?.user?.name} (#${event?.channel?.name}) | Open WebUI`, {
+						const agentName = $i18n.t('DCAIAgent');
+
+						new Notification(`${data?.user?.name} (#${event?.channel?.name}) | ${agentName}`, {
 							body: data?.content,
 							icon: data?.user?.profile_image_url ?? `${WEBUI_BASE_URL}/static/favicon.png`
 						});
@@ -396,10 +398,6 @@
 	};
 
 	onMount(async () => {
-		if (typeof window !== 'undefined' && window.applyTheme) {
-			window.applyTheme();
-		}
-
 		if (window?.electronAPI) {
 			const info = await window.electronAPI.send({
 				type: 'app:info'
@@ -456,7 +454,6 @@
 		let backendConfig = null;
 		try {
 			backendConfig = await getBackendConfig();
-			console.log('Backend config:', backendConfig);
 		} catch (error) {
 			console.error('Error loading backend config:', error);
 		}
@@ -464,16 +461,17 @@
 		// so `/error` can show something that's not `undefined`.
 
 		initI18n();
-		if (!localStorage.locale) {
-			const languages = await getLanguages();
-			const browserLanguages = navigator.languages
-				? navigator.languages
-				: [navigator.language || navigator.userLanguage];
-			const lang = backendConfig.default_locale
-				? backendConfig.default_locale
-				: bestMatchingLanguage(languages, browserLanguages, 'en-US');
-			$i18n.changeLanguage(lang);
-		}
+		// if (!localStorage.locale) {
+		// 	const languages = await getLanguages();
+		// 	const browserLanguages = navigator.languages
+		// 		? navigator.languages
+		// 		: [navigator.language || navigator.userLanguage];
+		// 	const lang = backendConfig.default_locale
+		// 		? backendConfig.default_locale
+		// 		: bestMatchingLanguage(languages, browserLanguages, 'en-US');
+		// 	$i18n.changeLanguage(lang);
+		// }
+		$i18n.changeLanguage('zh-CN');
 
 		if (backendConfig) {
 			// Save Backend Status to Store
@@ -481,14 +479,20 @@
 			await WEBUI_NAME.set(backendConfig.name);
 
 			if ($config) {
+				console.log('config');
+				
 				await setupSocket($config.features?.enable_websocket ?? true);
 
 				if (localStorage.token) {
+					console.log('localStorage.token', localStorage.token);
+					
 					// Get Session User Info
 					const sessionUser = await getSessionUser(localStorage.token).catch((error) => {
 						toast.error(`${error}`);
 						return null;
 					});
+					console.log('sessionUser', sessionUser);
+					
 
 					if (sessionUser) {
 						// Save Session User to Store
@@ -556,8 +560,8 @@
 </script>
 
 <svelte:head>
-	<title>{$WEBUI_NAME}</title>
-	<link crossorigin="anonymous" rel="icon" href="{WEBUI_BASE_URL}/static/favicon.png" />
+	<title>{$i18n.t($WEBUI_NAME)}</title>
+	<link crossorigin="anonymous" rel="icon" href="/static/favicon.png" />
 
 	<!-- rosepine themes have been disabled as it's not up to date with our latest version. -->
 	<!-- feel free to make a PR to fix if anyone wants to see it return -->

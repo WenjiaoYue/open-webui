@@ -5,7 +5,7 @@
 	import Collapsible from '$lib/components/common/Collapsible.svelte';
 
 	export let status = { urls: [], query: '' };
-	let state = false;
+	let state = true;
 </script>
 
 <Collapsible bind:open={state} className="w-full space-y-1">

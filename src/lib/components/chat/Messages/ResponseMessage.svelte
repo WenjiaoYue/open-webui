@@ -15,7 +15,7 @@
 	import { getChatById } from '$lib/apis/chats';
 	import { generateTags } from '$lib/apis';
 
-	import { config, models, settings, temporaryChatEnabled, TTSWorker, user } from '$lib/stores';
+	import { config, models, settings, TTSWorker, user } from '$lib/stores';
 	import { synthesizeOpenAISpeech } from '$lib/apis/audio';
 	import { imageGenerations } from '$lib/apis/images';
 	import {
@@ -37,9 +37,6 @@
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import WebSearchResults from './ResponseMessage/WebSearchResults.svelte';
 	import Sparkles from '$lib/components/icons/Sparkles.svelte';
-
-	import DeleteConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
-
 	import Error from './Error.svelte';
 	import Citations from './Citations.svelte';
 	import CodeExecutions from './CodeExecutions.svelte';
@@ -128,9 +125,6 @@
 
 	export let isLastMessage = true;
 	export let readOnly = false;
-
-	let buttonsContainerElement: HTMLDivElement;
-	let showDeleteConfirm = false;
 
 	let model = null;
 	$: model = $models.find((m) => m.id === message.model);
@@ -519,28 +513,8 @@
 		// console.log('ResponseMessage mounted');
 
 		await tick();
-		if (buttonsContainerElement) {
-			console.log(buttonsContainerElement);
-			buttonsContainerElement.addEventListener('wheel', function (event) {
-				// console.log(event.deltaY);
-
-				event.preventDefault();
-				if (event.deltaY !== 0) {
-					// Adjust horizontal scroll position based on vertical scroll
-					buttonsContainerElement.scrollLeft += event.deltaY;
-				}
-			});
-		}
 	});
 </script>
-
-<DeleteConfirmDialog
-	bind:show={showDeleteConfirm}
-	title={$i18n.t('Delete message?')}
-	on:confirm={() => {
-		deleteMessageHandler();
-	}}
-/>
 
 {#key message.id}
 	<div
@@ -548,7 +522,7 @@
 		id="message-{message.id}"
 		dir={$settings.chatDirection}
 	>
-		<div class={`shrink-0 ${($settings?.chatDirection ?? 'LTR') === 'LTR' ? 'mr-3' : 'ml-3'}`}>
+		<div class={`flex-shrink-0 ${($settings?.chatDirection ?? 'LTR') === 'LTR' ? 'mr-3' : 'ml-3'}`}>
 			<ProfileImage
 				src={model?.info?.meta?.profile_image_url ??
 					($i18n.language === 'dg-DG' ? `/doge.png` : `${WEBUI_BASE_URL}/static/favicon.png`)}
@@ -560,7 +534,7 @@
 			<Name>
 				<Tooltip content={model?.name ?? message.model} placement="top-start">
 					<span class="line-clamp-1">
-						{model?.name ?? message.model}
+						{$i18n.t('DCAIAgent')}
 					</span>
 				</Tooltip>
 
@@ -671,7 +645,7 @@
 								<textarea
 									id="message-edit-{message.id}"
 									bind:this={editTextAreaElement}
-									class=" bg-transparent outline-hidden w-full resize-none"
+									class=" bg-transparent outline-none w-full resize-none"
 									bind:value={editedContent}
 									on:input={(e) => {
 										e.target.style.height = '';
@@ -742,12 +716,9 @@
 										floatingButtons={message?.done}
 										save={!readOnly}
 										{model}
-										onTaskClick={async (e) => {
+										onSourceClick={async (e) => {
 											console.log(e);
-										}}
-										onSourceClick={async (id, idx) => {
-											console.log(id, idx);
-											let sourceButton = document.getElementById(`source-${message.id}-${idx}`);
+											let sourceButton = document.getElementById(`source-${e}`);
 											const sourcesCollapsible = document.getElementById(`collapsible-sources`);
 
 											if (sourceButton) {
@@ -766,7 +737,7 @@
 												});
 
 												// Try clicking the source button again
-												sourceButton = document.getElementById(`source-${message.id}-${idx}`);
+												sourceButton = document.getElementById(`source-${e}`);
 												sourceButton && sourceButton.click();
 											}
 										}}
@@ -803,7 +774,7 @@
 								{/if}
 
 								{#if (message?.sources || message?.citations) && (model?.info?.meta?.capabilities?.citations ?? true)}
-									<Citations id={message?.id} sources={message?.sources ?? message?.citations} />
+									<Citations sources={message?.sources ?? message?.citations} />
 								{/if}
 
 								{#if message.code_executions}
@@ -815,11 +786,10 @@
 				</div>
 
 				{#if !edit}
-					<div
-						bind:this={buttonsContainerElement}
-						class="flex justify-start overflow-x-auto buttons text-gray-600 dark:text-gray-500 mt-0.5"
-					>
-						{#if message.done || siblings.length > 1}
+					{#if message.done || siblings.length > 1}
+						<div
+							class=" flex justify-start overflow-x-auto buttons text-gray-600 dark:text-gray-500 mt-0.5"
+						>
 							{#if siblings.length > 1}
 								<div class="flex self-center min-w-fit" dir="ltr">
 									<button
@@ -1116,7 +1086,7 @@
 								{/if}
 
 								{#if !readOnly}
-									{#if !$temporaryChatEnabled && ($config?.features.enable_message_rating ?? true)}
+									{#if $config?.features.enable_message_rating ?? true}
 										<Tooltip content={$i18n.t('Good Response')} placement="bottom">
 											<button
 												class="{isLastMessage
@@ -1274,7 +1244,7 @@
 													? 'visible'
 													: 'invisible group-hover:visible'} p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg dark:hover:text-white hover:text-black transition regenerate-response-button"
 												on:click={() => {
-													showDeleteConfirm = true;
+													deleteMessageHandler();
 												}}
 											>
 												<svg
@@ -1327,8 +1297,8 @@
 									{/if}
 								{/if}
 							{/if}
-						{/if}
-					</div>
+						</div>
+					{/if}
 
 					{#if message.done && showRateComment}
 						<RateComment

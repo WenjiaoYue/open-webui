@@ -14,11 +14,6 @@ from urllib.parse import urlparse
 import aiohttp
 from aiocache import cached
 import requests
-from open_webui.models.users import UserModel
-
-from open_webui.env import (
-    ENABLE_FORWARD_USER_INFO_HEADERS,
-)
 
 from fastapi import (
     Depends,
@@ -31,7 +26,7 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, validator
+from pydantic import BaseModel, ConfigDict
 from starlette.background import BackgroundTask
 
 
@@ -71,26 +66,12 @@ log.setLevel(SRC_LOG_LEVELS["OLLAMA"])
 ##########################################
 
 
-async def send_get_request(url, key=None, user: UserModel = None):
+async def send_get_request(url, key=None):
     timeout = aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT_OPENAI_MODEL_LIST)
     try:
         async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as session:
             async with session.get(
-                url,
-                headers={
-                    "Content-Type": "application/json",
-                    **({"Authorization": f"Bearer {key}"} if key else {}),
-                    **(
-                        {
-                            "X-OpenWebUI-User-Name": user.name,
-                            "X-OpenWebUI-User-Id": user.id,
-                            "X-OpenWebUI-User-Email": user.email,
-                            "X-OpenWebUI-User-Role": user.role,
-                        }
-                        if ENABLE_FORWARD_USER_INFO_HEADERS and user
-                        else {}
-                    ),
-                },
+                url, headers={**({"Authorization": f"Bearer {key}"} if key else {})}
             ) as response:
                 return await response.json()
     except Exception as e:
@@ -115,7 +96,6 @@ async def send_post_request(
     stream: bool = True,
     key: Optional[str] = None,
     content_type: Optional[str] = None,
-    user: UserModel = None,
 ):
 
     r = None
@@ -130,16 +110,6 @@ async def send_post_request(
             headers={
                 "Content-Type": "application/json",
                 **({"Authorization": f"Bearer {key}"} if key else {}),
-                **(
-                    {
-                        "X-OpenWebUI-User-Name": user.name,
-                        "X-OpenWebUI-User-Id": user.id,
-                        "X-OpenWebUI-User-Email": user.email,
-                        "X-OpenWebUI-User-Role": user.role,
-                    }
-                    if ENABLE_FORWARD_USER_INFO_HEADERS and user
-                    else {}
-                ),
             },
         )
         r.raise_for_status()
@@ -176,7 +146,7 @@ async def send_post_request(
 
         raise HTTPException(
             status_code=r.status if r else 500,
-            detail=detail if detail else "Open WebUI: Server Connection Error",
+            detail=detail if detail else "DCAI小智: Server Connection Error",
         )
 
 
@@ -221,19 +191,7 @@ async def verify_connection(
         try:
             async with session.get(
                 f"{url}/api/version",
-                headers={
-                    **({"Authorization": f"Bearer {key}"} if key else {}),
-                    **(
-                        {
-                            "X-OpenWebUI-User-Name": user.name,
-                            "X-OpenWebUI-User-Id": user.id,
-                            "X-OpenWebUI-User-Email": user.email,
-                            "X-OpenWebUI-User-Role": user.role,
-                        }
-                        if ENABLE_FORWARD_USER_INFO_HEADERS and user
-                        else {}
-                    ),
-                },
+                headers={**({"Authorization": f"Bearer {key}"} if key else {})},
             ) as r:
                 if r.status != 200:
                     detail = f"HTTP Error: {r.status}"
@@ -248,7 +206,7 @@ async def verify_connection(
         except aiohttp.ClientError as e:
             log.exception(f"Client error: {str(e)}")
             raise HTTPException(
-                status_code=500, detail="Open WebUI: Server Connection Error"
+                status_code=500, detail="DCAI小智: Server Connection Error"
             )
         except Exception as e:
             log.exception(f"Unexpected error: {e}")
@@ -296,7 +254,7 @@ async def update_config(
 
 
 @cached(ttl=3)
-async def get_all_models(request: Request, user: UserModel = None):
+async def get_all_models(request: Request):
     log.info("get_all_models()")
     if request.app.state.config.ENABLE_OLLAMA_API:
         request_tasks = []
@@ -304,7 +262,7 @@ async def get_all_models(request: Request, user: UserModel = None):
             if (str(idx) not in request.app.state.config.OLLAMA_API_CONFIGS) and (
                 url not in request.app.state.config.OLLAMA_API_CONFIGS  # Legacy support
             ):
-                request_tasks.append(send_get_request(f"{url}/api/tags", user=user))
+                request_tasks.append(send_get_request(f"{url}/api/tags"))
             else:
                 api_config = request.app.state.config.OLLAMA_API_CONFIGS.get(
                     str(idx),
@@ -317,9 +275,7 @@ async def get_all_models(request: Request, user: UserModel = None):
                 key = api_config.get("key", None)
 
                 if enable:
-                    request_tasks.append(
-                        send_get_request(f"{url}/api/tags", key, user=user)
-                    )
+                    request_tasks.append(send_get_request(f"{url}/api/tags", key))
                 else:
                     request_tasks.append(asyncio.ensure_future(asyncio.sleep(0, None)))
 
@@ -404,7 +360,7 @@ async def get_ollama_tags(
     models = []
 
     if url_idx is None:
-        models = await get_all_models(request, user=user)
+        models = await get_all_models(request)
     else:
         url = request.app.state.config.OLLAMA_BASE_URLS[url_idx]
         key = get_api_key(url_idx, url, request.app.state.config.OLLAMA_API_CONFIGS)
@@ -414,19 +370,7 @@ async def get_ollama_tags(
             r = requests.request(
                 method="GET",
                 url=f"{url}/api/tags",
-                headers={
-                    **({"Authorization": f"Bearer {key}"} if key else {}),
-                    **(
-                        {
-                            "X-OpenWebUI-User-Name": user.name,
-                            "X-OpenWebUI-User-Id": user.id,
-                            "X-OpenWebUI-User-Email": user.email,
-                            "X-OpenWebUI-User-Role": user.role,
-                        }
-                        if ENABLE_FORWARD_USER_INFO_HEADERS and user
-                        else {}
-                    ),
-                },
+                headers={**({"Authorization": f"Bearer {key}"} if key else {})},
             )
             r.raise_for_status()
 
@@ -445,7 +389,7 @@ async def get_ollama_tags(
 
             raise HTTPException(
                 status_code=r.status_code if r else 500,
-                detail=detail if detail else "Open WebUI: Server Connection Error",
+                detail=detail if detail else "DCAI小智: Server Connection Error",
             )
 
     if user.role == "user" and not BYPASS_MODEL_ACCESS_CONTROL:
@@ -512,7 +456,7 @@ async def get_ollama_versions(request: Request, url_idx: Optional[int] = None):
 
                 raise HTTPException(
                     status_code=r.status_code if r else 500,
-                    detail=detail if detail else "Open WebUI: Server Connection Error",
+                    detail=detail if detail else "DCAI小智: Server Connection Error",
                 )
     else:
         return {"version": False}
@@ -533,7 +477,6 @@ async def get_ollama_loaded_models(request: Request, user=Depends(get_verified_u
                         url, {}
                     ),  # Legacy support
                 ).get("key", None),
-                user=user,
             )
             for idx, url in enumerate(request.app.state.config.OLLAMA_BASE_URLS)
         ]
@@ -566,7 +509,6 @@ async def pull_model(
         url=f"{url}/api/pull",
         payload=json.dumps(payload),
         key=get_api_key(url_idx, url, request.app.state.config.OLLAMA_API_CONFIGS),
-        user=user,
     )
 
 
@@ -585,7 +527,7 @@ async def push_model(
     user=Depends(get_admin_user),
 ):
     if url_idx is None:
-        await get_all_models(request, user=user)
+        await get_all_models(request)
         models = request.app.state.OLLAMA_MODELS
 
         if form_data.name in models:
@@ -603,7 +545,6 @@ async def push_model(
         url=f"{url}/api/push",
         payload=form_data.model_dump_json(exclude_none=True).encode(),
         key=get_api_key(url_idx, url, request.app.state.config.OLLAMA_API_CONFIGS),
-        user=user,
     )
 
 
@@ -630,7 +571,6 @@ async def create_model(
         url=f"{url}/api/create",
         payload=form_data.model_dump_json(exclude_none=True).encode(),
         key=get_api_key(url_idx, url, request.app.state.config.OLLAMA_API_CONFIGS),
-        user=user,
     )
 
 
@@ -648,7 +588,7 @@ async def copy_model(
     user=Depends(get_admin_user),
 ):
     if url_idx is None:
-        await get_all_models(request, user=user)
+        await get_all_models(request)
         models = request.app.state.OLLAMA_MODELS
 
         if form_data.source in models:
@@ -669,16 +609,6 @@ async def copy_model(
             headers={
                 "Content-Type": "application/json",
                 **({"Authorization": f"Bearer {key}"} if key else {}),
-                **(
-                    {
-                        "X-OpenWebUI-User-Name": user.name,
-                        "X-OpenWebUI-User-Id": user.id,
-                        "X-OpenWebUI-User-Email": user.email,
-                        "X-OpenWebUI-User-Role": user.role,
-                    }
-                    if ENABLE_FORWARD_USER_INFO_HEADERS and user
-                    else {}
-                ),
             },
             data=form_data.model_dump_json(exclude_none=True).encode(),
         )
@@ -700,7 +630,7 @@ async def copy_model(
 
         raise HTTPException(
             status_code=r.status_code if r else 500,
-            detail=detail if detail else "Open WebUI: Server Connection Error",
+            detail=detail if detail else "DCAI小智: Server Connection Error",
         )
 
 
@@ -713,7 +643,7 @@ async def delete_model(
     user=Depends(get_admin_user),
 ):
     if url_idx is None:
-        await get_all_models(request, user=user)
+        await get_all_models(request)
         models = request.app.state.OLLAMA_MODELS
 
         if form_data.name in models:
@@ -735,16 +665,6 @@ async def delete_model(
             headers={
                 "Content-Type": "application/json",
                 **({"Authorization": f"Bearer {key}"} if key else {}),
-                **(
-                    {
-                        "X-OpenWebUI-User-Name": user.name,
-                        "X-OpenWebUI-User-Id": user.id,
-                        "X-OpenWebUI-User-Email": user.email,
-                        "X-OpenWebUI-User-Role": user.role,
-                    }
-                    if ENABLE_FORWARD_USER_INFO_HEADERS and user
-                    else {}
-                ),
             },
         )
         r.raise_for_status()
@@ -765,7 +685,7 @@ async def delete_model(
 
         raise HTTPException(
             status_code=r.status_code if r else 500,
-            detail=detail if detail else "Open WebUI: Server Connection Error",
+            detail=detail if detail else "DCAI小智: Server Connection Error",
         )
 
 
@@ -773,7 +693,7 @@ async def delete_model(
 async def show_model_info(
     request: Request, form_data: ModelNameForm, user=Depends(get_verified_user)
 ):
-    await get_all_models(request, user=user)
+    await get_all_models(request)
     models = request.app.state.OLLAMA_MODELS
 
     if form_data.name not in models:
@@ -794,16 +714,6 @@ async def show_model_info(
             headers={
                 "Content-Type": "application/json",
                 **({"Authorization": f"Bearer {key}"} if key else {}),
-                **(
-                    {
-                        "X-OpenWebUI-User-Name": user.name,
-                        "X-OpenWebUI-User-Id": user.id,
-                        "X-OpenWebUI-User-Email": user.email,
-                        "X-OpenWebUI-User-Role": user.role,
-                    }
-                    if ENABLE_FORWARD_USER_INFO_HEADERS and user
-                    else {}
-                ),
             },
             data=form_data.model_dump_json(exclude_none=True).encode(),
         )
@@ -824,7 +734,7 @@ async def show_model_info(
 
         raise HTTPException(
             status_code=r.status_code if r else 500,
-            detail=detail if detail else "Open WebUI: Server Connection Error",
+            detail=detail if detail else "DCAI小智: Server Connection Error",
         )
 
 
@@ -847,7 +757,7 @@ async def embed(
     log.info(f"generate_ollama_batch_embeddings {form_data}")
 
     if url_idx is None:
-        await get_all_models(request, user=user)
+        await get_all_models(request)
         models = request.app.state.OLLAMA_MODELS
 
         model = form_data.model
@@ -873,16 +783,6 @@ async def embed(
             headers={
                 "Content-Type": "application/json",
                 **({"Authorization": f"Bearer {key}"} if key else {}),
-                **(
-                    {
-                        "X-OpenWebUI-User-Name": user.name,
-                        "X-OpenWebUI-User-Id": user.id,
-                        "X-OpenWebUI-User-Email": user.email,
-                        "X-OpenWebUI-User-Role": user.role,
-                    }
-                    if ENABLE_FORWARD_USER_INFO_HEADERS and user
-                    else {}
-                ),
             },
             data=form_data.model_dump_json(exclude_none=True).encode(),
         )
@@ -904,7 +804,7 @@ async def embed(
 
         raise HTTPException(
             status_code=r.status_code if r else 500,
-            detail=detail if detail else "Open WebUI: Server Connection Error",
+            detail=detail if detail else "DCAI小智: Server Connection Error",
         )
 
 
@@ -926,7 +826,7 @@ async def embeddings(
     log.info(f"generate_ollama_embeddings {form_data}")
 
     if url_idx is None:
-        await get_all_models(request, user=user)
+        await get_all_models(request)
         models = request.app.state.OLLAMA_MODELS
 
         model = form_data.model
@@ -952,16 +852,6 @@ async def embeddings(
             headers={
                 "Content-Type": "application/json",
                 **({"Authorization": f"Bearer {key}"} if key else {}),
-                **(
-                    {
-                        "X-OpenWebUI-User-Name": user.name,
-                        "X-OpenWebUI-User-Id": user.id,
-                        "X-OpenWebUI-User-Email": user.email,
-                        "X-OpenWebUI-User-Role": user.role,
-                    }
-                    if ENABLE_FORWARD_USER_INFO_HEADERS and user
-                    else {}
-                ),
             },
             data=form_data.model_dump_json(exclude_none=True).encode(),
         )
@@ -983,7 +873,7 @@ async def embeddings(
 
         raise HTTPException(
             status_code=r.status_code if r else 500,
-            detail=detail if detail else "Open WebUI: Server Connection Error",
+            detail=detail if detail else "DCAI小智: Server Connection Error",
         )
 
 
@@ -1011,7 +901,7 @@ async def generate_completion(
     user=Depends(get_verified_user),
 ):
     if url_idx is None:
-        await get_all_models(request, user=user)
+        await get_all_models(request)
         models = request.app.state.OLLAMA_MODELS
 
         model = form_data.model
@@ -1041,34 +931,20 @@ async def generate_completion(
         url=f"{url}/api/generate",
         payload=form_data.model_dump_json(exclude_none=True).encode(),
         key=get_api_key(url_idx, url, request.app.state.config.OLLAMA_API_CONFIGS),
-        user=user,
     )
 
 
 class ChatMessage(BaseModel):
     role: str
-    content: Optional[str] = None
+    content: str
     tool_calls: Optional[list[dict]] = None
     images: Optional[list[str]] = None
-
-    @validator("content", pre=True)
-    @classmethod
-    def check_at_least_one_field(cls, field_value, values, **kwargs):
-        # Raise an error if both 'content' and 'tool_calls' are None
-        if field_value is None and (
-            "tool_calls" not in values or values["tool_calls"] is None
-        ):
-            raise ValueError(
-                "At least one of 'content' or 'tool_calls' must be provided"
-            )
-
-        return field_value
 
 
 class GenerateChatCompletionForm(BaseModel):
     model: str
     messages: list[ChatMessage]
-    format: Optional[Union[dict, str]] = None
+    format: Optional[dict] = None
     options: Optional[dict] = None
     template: Optional[str] = None
     stream: Optional[bool] = True
@@ -1171,7 +1047,6 @@ async def generate_chat_completion(
         stream=form_data.stream,
         key=get_api_key(url_idx, url, request.app.state.config.OLLAMA_API_CONFIGS),
         content_type="application/x-ndjson",
-        user=user,
     )
 
 
@@ -1274,7 +1149,6 @@ async def generate_openai_completion(
         payload=json.dumps(payload),
         stream=payload.get("stream", False),
         key=get_api_key(url_idx, url, request.app.state.config.OLLAMA_API_CONFIGS),
-        user=user,
     )
 
 
@@ -1353,7 +1227,6 @@ async def generate_openai_chat_completion(
         payload=json.dumps(payload),
         stream=payload.get("stream", False),
         key=get_api_key(url_idx, url, request.app.state.config.OLLAMA_API_CONFIGS),
-        user=user,
     )
 
 
@@ -1367,7 +1240,7 @@ async def get_openai_models(
 
     models = []
     if url_idx is None:
-        model_list = await get_all_models(request, user=user)
+        model_list = await get_all_models(request)
         models = [
             {
                 "id": model["model"],
@@ -1397,7 +1270,7 @@ async def get_openai_models(
             ]
         except Exception as e:
             log.exception(e)
-            error_detail = "Open WebUI: Server Connection Error"
+            error_detail = "DCAI小智: Server Connection Error"
             if r is not None:
                 try:
                     res = r.json()

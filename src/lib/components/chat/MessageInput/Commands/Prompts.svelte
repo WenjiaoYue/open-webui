@@ -74,13 +74,7 @@
 		}
 
 		if (command.content.includes('{{USER_LOCATION}}')) {
-			let location;
-			try {
-				location = await getUserPosition();
-			} catch (error) {
-				toast.error($i18n.t('Location access not allowed'));
-				location = 'LOCATION_UNKNOWN';
-			}
+			const location = await getUserPosition();
 			text = text.replaceAll('{{USER_LOCATION}}', String(location));
 		}
 
@@ -145,7 +139,7 @@
 		id="commands-container"
 		class="px-2 mb-2 text-left w-full absolute bottom-0 left-0 right-0 z-10"
 	>
-		<div class="flex w-full rounded-xl border border-gray-100 dark:border-gray-850">
+		<div class="flex w-full rounded-xl border border-gray-50 dark:border-gray-850">
 			<div
 				class="max-h-60 flex flex-col w-full rounded-xl bg-white dark:bg-gray-900 dark:text-gray-100"
 			>

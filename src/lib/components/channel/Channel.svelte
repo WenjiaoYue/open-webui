@@ -2,7 +2,7 @@
 	import { toast } from 'svelte-sonner';
 	import { Pane, PaneGroup, PaneResizer } from 'paneforge';
 
-	import { onDestroy, onMount, tick } from 'svelte';
+	import { onDestroy, onMount, tick, getContext } from 'svelte';
 	import { goto } from '$app/navigation';
 
 	import { chatId, showSidebar, socket, user } from '$lib/stores';
@@ -16,6 +16,9 @@
 	import Thread from './Thread.svelte';
 
 	export let id = '';
+
+	const i18n = getContext('i18n');
+
 
 	let scrollEnd = true;
 	let messagesContainerElement = null;
@@ -195,7 +198,7 @@
 </script>
 
 <svelte:head>
-	<title>#{channel?.name ?? 'Channel'} | Open WebUI</title>
+	<title>#{channel?.name ?? 'Channel'} | {$i18n.t('DCAIAgent')}</title>
 </svelte:head>
 
 <div
@@ -281,7 +284,7 @@
 			<PaneResizer
 				class="relative flex w-[3px] items-center justify-center bg-background group bg-gray-50 dark:bg-gray-850"
 			>
-				<div class="z-10 flex h-7 w-5 items-center justify-center rounded-xs">
+				<div class="z-10 flex h-7 w-5 items-center justify-center rounded-sm">
 					<EllipsisVertical className="size-4 invisible group-hover:visible" />
 				</div>
 			</PaneResizer>

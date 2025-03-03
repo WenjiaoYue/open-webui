@@ -27,12 +27,7 @@
 	let password = '';
 
 	let ldapUsername = '';
-
-	const querystringValue = (key) => {
-		const querystring = window.location.search;
-		const urlParams = new URLSearchParams(querystring);
-		return urlParams.get(key);
-	};
+	let intelAccount = '';
 
 	const setSessionUser = async (sessionUser) => {
 		if (sessionUser) {
@@ -41,23 +36,55 @@
 			if (sessionUser.token) {
 				localStorage.token = sessionUser.token;
 			}
-
+			console.log('setSessionUser -->', sessionUser.token);
+			
 			$socket.emit('user-join', { auth: { token: sessionUser.token } });
 			await user.set(sessionUser);
 			await config.set(await getBackendConfig());
-
-			const redirectPath = querystringValue('redirect') || '/';
-			goto(redirectPath);
+			goto('/');
 		}
 	};
 
-	const signInHandler = async () => {
-		const sessionUser = await userSignIn(email, password).catch((error) => {
+	async function stayLogout() {
+		const sessionUser = await userSignIn('Guest@123.com', 'Guest123').catch((error) => {
 			toast.error(`${error}`);
 			return null;
 		});
-
+		console.log('sessionUser', sessionUser);
 		await setSessionUser(sessionUser);
+	}
+
+	const signInHandler = async () => {
+		// verify intel account
+		let tmpIntelAccount = '';
+		if (!intelAccount.startsWith('CCR\\')) {
+			tmpIntelAccount = 'CCR\\' + intelAccount;
+		}
+
+		const intelInfo = await ldapUserSignIn(tmpIntelAccount, password).catch((error) => {
+			toast.error(`${error}`);
+			return null;
+		});
+		if (intelInfo) {
+			const current_email = intelInfo['user info dict'].email_address;
+			const name = intelInfo['user info dict'].idsid;
+			const password = intelInfo['user info dict'].id;
+
+			await userSignUp(name, current_email, password, generateInitialsImage(name)).catch(
+				(error) => {
+					return null;
+				}
+			);
+
+			const sessionUser = await userSignIn(current_email, password).catch((error) => {
+				toast.error(`${error}`);
+				return null;
+			});
+			console.log('sessionUser', sessionUser);
+			await setSessionUser(sessionUser);
+		} else {
+			toast.error(`用户名/密码错误，请使用CCR 账号登陆`);
+		}
 	};
 
 	const signUpHandler = async () => {
@@ -76,6 +103,8 @@
 			toast.error(`${error}`);
 			return null;
 		});
+		console.log('sessionUser', sessionUser);
+
 		await setSessionUser(sessionUser);
 	};
 
@@ -128,11 +157,17 @@
 			onboarding = $config?.onboarding ?? false;
 		}
 	});
+
+	function removeCCRPrefix() {
+		if (intelAccount.startsWith('CCR\\')) {
+			intelAccount = intelAccount.slice(4); // 移除前缀 'CCR\'
+		}
+	}
 </script>
 
 <svelte:head>
 	<title>
-		{`${$WEBUI_NAME}`}
+		{`${$i18n.t(`${$WEBUI_NAME}`)}`}
 	</title>
 </svelte:head>
 
@@ -155,8 +190,8 @@
 				<div class=" self-center">
 					<img
 						crossorigin="anonymous"
-						src="{WEBUI_BASE_URL}/static/splash.png"
-						class=" w-6 rounded-full dark:invert"
+						src="/static/splash.png"
+						class="w-[5rem] dark:invert"
 						alt="logo"
 					/>
 				</div>
@@ -191,21 +226,32 @@
 							}}
 						>
 							<div class="mb-1">
-								<div class=" text-2xl font-medium">
+								<h2 class="text-3xl md:text-4xl font-extrabold mb-2">
 									{#if $config?.onboarding ?? false}
 										{$i18n.t(`Get started with {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
 									{:else if mode === 'ldap'}
 										{$i18n.t(`Sign in to {{WEBUI_NAME}} with LDAP`, { WEBUI_NAME: $WEBUI_NAME })}
 									{:else if mode === 'signin'}
-										{$i18n.t(`Sign in to {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
+										{$i18n.t(`Sign in`)}
 									{:else}
 										{$i18n.t(`Sign up to {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
 									{/if}
-								</div>
+								</h2>
+								<p class="mt-2 text-center text-sm leading-5 text-blue-500 max-w">
+									{$i18n.t(`or`)}
+
+									<a
+										href="#"
+										on:click={stayLogout}
+										class="font-medium text-blue-500 hover:text-blue-500 focus:outline-none underline transition ease-in-out duration-150"
+									>
+										{$i18n.t(`Stay logged out`)}
+									</a>
+								</p>
 
 								{#if $config?.onboarding ?? false}
 									<div class=" mt-1 text-xs font-medium text-gray-500">
-										ⓘ {$WEBUI_NAME}
+										ⓘ {$i18n.t($WEBUI_NAME)}
 										{$i18n.t(
 											'does not make any external connections, and your data stays securely on your locally hosted server.'
 										)}
@@ -221,7 +267,7 @@
 											<input
 												bind:value={name}
 												type="text"
-												class="my-0.5 w-full text-sm outline-hidden bg-transparent"
+												class="inline-block w-full p-4 leading-6 text-lg font-extrabold placeholder-[#1662c7] bg-white shadow border-2 border-[#1662c7] rounded"
 												autocomplete="name"
 												placeholder={$i18n.t('Enter Your Full Name')}
 												required
@@ -235,7 +281,7 @@
 											<input
 												bind:value={ldapUsername}
 												type="text"
-												class="my-0.5 w-full text-sm outline-hidden bg-transparent"
+												class="my-0.5 w-full text-sm outline-none bg-transparent"
 												autocomplete="username"
 												name="username"
 												placeholder={$i18n.t('Enter Your Username')}
@@ -244,26 +290,48 @@
 										</div>
 									{:else}
 										<div class="mb-2">
+											<div class="block mb-2 font-extrabold text-left">
+												Intel {$i18n.t('Account')}
+											</div>
+
+											<div class="flex">
+												<button
+													class="shrink-0 z-10 inline-flex items-center py-2.5 px-4 text-sm font-medium text-center text-gray-900 bg-gray-100 border-2 border-[#1662c7] border-r-0 dark:border-gray-700 dark:text-white  hover:bg-gray-200 focus:ring-4 focus:outline-none focus:ring-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-800"
+													type="button"
+													>CCR\
+												</button>
+												<input
+													bind:value={intelAccount}
+													type="text"
+													class="flex w-full p-4 leading-6 text-md font-extrabold placeholder-[#1662c7] bg-white shadow border-2 border-[#1662c7] border-l-0 "
+													autocomplete="username"
+													placeholder={$i18n.t('Account')}
+													required
+													on:input={removeCCRPrefix}
+												/>
+											</div>
+										</div>
+										<!-- <div class="mb-2">
 											<div class=" text-sm font-medium text-left mb-1">{$i18n.t('Email')}</div>
 											<input
 												bind:value={email}
 												type="email"
-												class="my-0.5 w-full text-sm outline-hidden bg-transparent"
+												class="my-0.5 w-full text-sm outline-none bg-transparent"
 												autocomplete="email"
 												name="email"
 												placeholder={$i18n.t('Enter Your Email')}
 												required
 											/>
-										</div>
+										</div> -->
 									{/if}
 
 									<div>
-										<div class=" text-sm font-medium text-left mb-1">{$i18n.t('Password')}</div>
+										<div class="block mb-2 font-extrabold text-left">{$i18n.t('Password')}</div>
 
 										<input
 											bind:value={password}
 											type="password"
-											class="my-0.5 w-full text-sm outline-hidden bg-transparent"
+											class="inline-block w-full p-4 leading-6 text-md font-extrabold placeholder-[#1662c7] bg-white shadow border-2 border-[#1662c7]"
 											placeholder={$i18n.t('Enter Your Password')}
 											autocomplete="current-password"
 											name="current-password"
@@ -283,7 +351,8 @@
 										</button>
 									{:else}
 										<button
-											class="bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition w-full rounded-full font-medium text-sm py-2.5"
+											class="
+												focus:ring-4 focus:ring-[#2557D6]/50 inline-block w-full py-4 px-6 mb-6 text-center text-lg leading-6 text-white font-extrabold bg-[#1662c7] hover:bg-[#1662c7]/90 border-3 border-[#1662c7] shadow transition duration-200"
 											type="submit"
 										>
 											{mode === 'signin'

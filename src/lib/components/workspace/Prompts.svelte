@@ -40,9 +40,9 @@
 	$: filteredItems = prompts.filter((p) => query === '' || p.command.includes(query));
 
 	const shareHandler = async (prompt) => {
-		toast.success($i18n.t('Redirecting you to Open WebUI Community'));
+		toast.success($i18n.t('Redirecting you to DCAIAgent Community'));
 
-		const url = 'https://openwebui.com';
+		const url = 'https://github.com/opea-project';
 
 		const tab = await window.open(`${url}/prompts/create`, '_blank');
 		window.addEventListener(
@@ -88,7 +88,7 @@
 
 <svelte:head>
 	<title>
-		{$i18n.t('Prompts')} | {$WEBUI_NAME}
+		{$i18n.t('Prompts')} | {$i18n.t($WEBUI_NAME)}
 	</title>
 </svelte:head>
 
@@ -122,7 +122,7 @@
 					<Search className="size-3.5" />
 				</div>
 				<input
-					class=" w-full text-sm pr-4 py-1 rounded-r-xl outline-hidden bg-transparent"
+					class=" w-full text-sm pr-4 py-1 rounded-r-xl outline-none bg-transparent"
 					bind:value={query}
 					placeholder={$i18n.t('Search Prompts')}
 				/>
@@ -319,12 +319,12 @@
 	{#if $config?.features.enable_community_sharing}
 		<div class=" my-16">
 			<div class=" text-xl font-medium mb-1 line-clamp-1">
-				{$i18n.t('Made by Open WebUI Community')}
+				{$i18n.t('Made by DCAIAgent Community')}
 			</div>
 
 			<a
 				class=" flex cursor-pointer items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-850 w-full mb-2 px-3.5 py-1.5 rounded-xl transition"
-				href="https://openwebui.com/#open-webui-community"
+				href="https://github.com/opea-project"
 				target="_blank"
 			>
 				<div class=" self-center">

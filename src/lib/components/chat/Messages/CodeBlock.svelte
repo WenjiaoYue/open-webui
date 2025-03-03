@@ -1,9 +1,18 @@
 <script lang="ts">
+	import hljs from 'highlight.js';
+	import { loadPyodide } from 'pyodide';
 	import mermaid from 'mermaid';
 
 	import { v4 as uuidv4 } from 'uuid';
 
-	import { getContext, onMount, tick, onDestroy } from 'svelte';
+	import {
+		getContext,
+		getAllContexts,
+		onMount,
+		tick,
+		createEventDispatcher,
+		onDestroy
+	} from 'svelte';
 	import { copyToClipboard } from '$lib/utils';
 
 	import 'highlight.js/styles/github-dark.min.css';
@@ -11,16 +20,11 @@
 	import PyodideWorker from '$lib/workers/pyodide.worker?worker';
 	import CodeEditor from '$lib/components/common/CodeEditor.svelte';
 	import SvgPanZoom from '$lib/components/common/SVGPanZoom.svelte';
-	import { config } from '$lib/stores';
-	import { executeCode } from '$lib/apis/utils';
-	import { toast } from 'svelte-sonner';
 
 	const i18n = getContext('i18n');
+	const dispatch = createEventDispatcher();
 
 	export let id = '';
-
-	export let onSave = (e) => {};
-	export let onCode = (e) => {};
 
 	export let save = false;
 	export let run = true;
@@ -64,7 +68,7 @@
 		saved = true;
 
 		code = _code;
-		onSave(code);
+		dispatch('save', code);
 
 		setTimeout(() => {
 			saved = false;
@@ -116,87 +120,16 @@
 	};
 
 	const executePython = async (code) => {
+		executePythonAsWorker(code);
+	};
+
+	const executePythonAsWorker = async (code) => {
 		result = null;
 		stdout = null;
 		stderr = null;
 
 		executing = true;
 
-		if ($config?.code?.engine === 'jupyter') {
-			const output = await executeCode(localStorage.token, code).catch((error) => {
-				toast.error(`${error}`);
-				return null;
-			});
-
-			if (output) {
-				if (output['stdout']) {
-					stdout = output['stdout'];
-					const stdoutLines = stdout.split('\n');
-
-					for (const [idx, line] of stdoutLines.entries()) {
-						if (line.startsWith('data:image/png;base64')) {
-							if (files) {
-								files.push({
-									type: 'image/png',
-									data: line
-								});
-							} else {
-								files = [
-									{
-										type: 'image/png',
-										data: line
-									}
-								];
-							}
-
-							if (stdout.startsWith(`${line}\n`)) {
-								stdout = stdout.replace(`${line}\n`, ``);
-							} else if (stdout.startsWith(`${line}`)) {
-								stdout = stdout.replace(`${line}`, ``);
-							}
-						}
-					}
-				}
-
-				if (output['result']) {
-					result = output['result'];
-					const resultLines = result.split('\n');
-
-					for (const [idx, line] of resultLines.entries()) {
-						if (line.startsWith('data:image/png;base64')) {
-							if (files) {
-								files.push({
-									type: 'image/png',
-									data: line
-								});
-							} else {
-								files = [
-									{
-										type: 'image/png',
-										data: line
-									}
-								];
-							}
-
-							if (result.startsWith(`${line}\n`)) {
-								result = result.replace(`${line}\n`, ``);
-							} else if (result.startsWith(`${line}`)) {
-								result = result.replace(`${line}`, ``);
-							}
-						}
-					}
-				}
-
-				output['stderr'] && (stderr = output['stderr']);
-			}
-
-			executing = false;
-		} else {
-			executePythonAsWorker(code);
-		}
-	};
-
-	const executePythonAsWorker = async (code) => {
 		let packages = [
 			code.includes('requests') ? 'requests' : null,
 			code.includes('bs4') ? 'beautifulsoup4' : null,
@@ -256,40 +189,7 @@
 							];
 						}
 
-						if (stdout.startsWith(`${line}\n`)) {
-							stdout = stdout.replace(`${line}\n`, ``);
-						} else if (stdout.startsWith(`${line}`)) {
-							stdout = stdout.replace(`${line}`, ``);
-						}
-					}
-				}
-			}
-
-			if (data['result']) {
-				result = data['result'];
-				const resultLines = result.split('\n');
-
-				for (const [idx, line] of resultLines.entries()) {
-					if (line.startsWith('data:image/png;base64')) {
-						if (files) {
-							files.push({
-								type: 'image/png',
-								data: line
-							});
-						} else {
-							files = [
-								{
-									type: 'image/png',
-									data: line
-								}
-							];
-						}
-
-						if (result.startsWith(`${line}\n`)) {
-							result = result.replace(`${line}\n`, ``);
-						} else if (result.startsWith(`${line}`)) {
-							result = result.replace(`${line}`, ``);
-						}
+						stdout = stdout.replace(`${line}\n`, ``);
 					}
 				}
 			}
@@ -337,7 +237,7 @@
 		render();
 	}
 
-	$: onCode({ lang, code });
+	$: dispatch('code', { lang, code });
 
 	$: if (attributes) {
 		onAttributesUpdate();
@@ -373,7 +273,7 @@
 		console.log('codeblock', lang, code);
 
 		if (lang) {
-			onCode({ lang, code });
+			dispatch('code', { lang, code });
 		}
 		if (document.documentElement.classList.contains('dark')) {
 			mermaid.initialize({
@@ -402,7 +302,7 @@
 		{#if lang === 'mermaid'}
 			{#if mermaidHtml}
 				<SvgPanZoom
-					className=" border border-gray-100 dark:border-gray-850 rounded-lg max-h-fit overflow-hidden"
+					className=" border border-gray-50 dark:border-gray-850 rounded-lg max-h-fit overflow-hidden"
 					svg={mermaidHtml}
 					content={_token.text}
 				/>
@@ -461,11 +361,11 @@
 					value={code}
 					{id}
 					{lang}
-					onSave={() => {
+					on:save={() => {
 						saveCode();
 					}}
-					onChange={(value) => {
-						_code = value;
+					on:change={(e) => {
+						_code = e.detail.value;
 					}}
 				/>
 			</div>
@@ -475,9 +375,9 @@
 				class="bg-gray-50 dark:bg-[#202123] dark:text-white max-w-full overflow-x-auto scrollbar-hidden"
 			/>
 
-			{#if executing || stdout || stderr || result || files}
+			{#if executing || stdout || stderr || result}
 				<div
-					class="bg-gray-50 dark:bg-[#202123] dark:text-white rounded-b-lg! py-4 px-4 flex flex-col gap-2"
+					class="bg-gray-50 dark:bg-[#202123] dark:text-white !rounded-b-lg py-4 px-4 flex flex-col gap-2"
 				>
 					{#if executing}
 						<div class=" ">
@@ -488,13 +388,7 @@
 						{#if stdout || stderr}
 							<div class=" ">
 								<div class=" text-gray-500 text-xs mb-1">STDOUT/STDERR</div>
-								<div
-									class="text-sm {stdout?.split('\n')?.length > 100
-										? `max-h-96`
-										: ''}  overflow-y-auto"
-								>
-									{stdout || stderr}
-								</div>
+								<div class="text-sm">{stdout || stderr}</div>
 							</div>
 						{/if}
 						{#if result || files}
@@ -507,7 +401,7 @@
 									<div class="flex flex-col gap-2">
 										{#each files as file}
 											{#if file.type.startsWith('image')}
-												<img src={file.data} alt="Output" class=" w-full max-w-[36rem]" />
+												<img src={file.data} alt="Output" />
 											{/if}
 										{/each}
 									</div>

@@ -2,17 +2,12 @@ import hashlib
 import re
 import time
 import uuid
-import logging
 from datetime import timedelta
 from pathlib import Path
 from typing import Callable, Optional
 
 
 import collections.abc
-from open_webui.env import SRC_LOG_LEVELS
-
-log = logging.getLogger(__name__)
-log.setLevel(SRC_LOG_LEVELS["MAIN"])
 
 
 def deep_update(d, u):
@@ -230,11 +225,10 @@ def openai_chat_completion_message_template(
     template = openai_chat_message_template(model)
     template["object"] = "chat.completion"
     if message is not None:
-        template["choices"][0]["message"] = {
-            "content": message,
-            "role": "assistant",
-            **({"tool_calls": tool_calls} if tool_calls else {}),
-        }
+        template["choices"][0]["message"] = {"content": message, "role": "assistant"}
+
+    if tool_calls:
+        template["choices"][0]["tool_calls"] = tool_calls
 
     template["choices"][0]["finish_reason"] = "stop"
 
@@ -417,7 +411,7 @@ def parse_ollama_modelfile(model_text):
                 elif param_type is bool:
                     value = value.lower() == "true"
             except Exception as e:
-                log.exception(f"Failed to parse parameter {param}: {e}")
+                print(e)
                 continue
 
             data["params"][param] = value

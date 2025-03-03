@@ -20,7 +20,7 @@
 
 <svelte:head>
 	<title>
-		{$i18n.t('Admin Panel')} | {$WEBUI_NAME}
+		{$i18n.t('Admin Panel')} | {$i18n.t($WEBUI_NAME)}
 	</title>
 </svelte:head>
 

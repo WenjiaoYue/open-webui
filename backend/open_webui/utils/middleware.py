@@ -39,10 +39,7 @@ from open_webui.routers.tasks import (
 )
 from open_webui.routers.retrieval import process_web_search, SearchForm
 from open_webui.routers.images import image_generations, GenerateImageForm
-from open_webui.routers.pipelines import (
-    process_pipeline_inlet_filter,
-    process_pipeline_outlet_filter,
-)
+
 
 from open_webui.utils.webhook import post_webhook
 
@@ -260,7 +257,16 @@ async def chat_completion_tools_handler(
 
 async def chat_web_search_handler(
     request: Request, form_data: dict, extra_params: dict, user
-):
+):  
+    # FIXME
+    req_dict = await request.json()
+    ori_prompt = req_dict["messages"][0]["content"]
+    print("ori_prompt", ori_prompt, req_dict, form_data)
+    # print('request', request.json().messages[0].content, request.json()['messages'][0], form_data)
+    logging.info(
+        f"chat_web_search_handler  {time.time()}"
+    )
+    print(f'chat_web_search_handler  {time.time()}')
     event_emitter = extra_params["__event_emitter__"]
     await event_emitter(
         {
@@ -273,143 +279,155 @@ async def chat_web_search_handler(
         }
     )
 
+    logging.info(
+        f"event_emitter  {time.time()}"
+        )
+    print(f'event_emitter  {time.time()}')    
     messages = form_data["messages"]
     user_message = get_last_user_message(messages)
 
-    queries = []
-    try:
-        res = await generate_queries(
-            request,
-            {
-                "model": form_data["model"],
-                "messages": messages,
-                "prompt": user_message,
-                "type": "web_search",
+    # queries = []
+    # try:
+
+    #     res = await generate_queries(
+    #         request,
+    #         {
+    #             "model": form_data["model"],
+    #             "messages": messages,
+    #             "prompt": user_message,
+    #             "type": "web_search",
+    #         },
+    #         user,
+    #     )
+
+    #     logging.info(
+    #     f"generate_queries 1  {time.time()}"
+    #     )
+    #     print(f'generate_queries 1  {time.time()}')
+    #     response = res["choices"][0]["message"]["content"]
+
+    #     try:
+    #         bracket_start = response.find("{")
+    #         bracket_end = response.rfind("}") + 1
+
+    #         if bracket_start == -1 or bracket_end == -1:
+    #             raise Exception("No JSON object found in the response")
+
+    #         response = response[bracket_start:bracket_end]
+    #         queries = json.loads(response)
+    #         queries = queries.get("queries", [])
+    #     except Exception as e:
+    #         queries = [response]
+
+    # except Exception as e:
+    #     log.exception(e)
+    #     queries = [user_message]
+
+    # logging.info(
+    #     f"queries  {queries}"
+    #     )
+    # print(f'queries  {queries}')
+    # if len(queries) == 0:
+    #     await event_emitter(
+    #         {
+    #             "type": "status",
+    #             "data": {
+    #                 "action": "web_search",
+    #                 "description": "No search query generated",
+    #                 "done": True,
+    #             },
+    #         }
+    #     )
+    #     return form_data
+
+    # searchQuery = queries[0]
+    # FIXME should be the last user_message!!
+    print("user_message: >>>", user_message)
+    searchQuery = user_message
+
+    await event_emitter(
+        {
+            "type": "status",
+            "data": {
+                "action": "web_search",
+                "description": 'Searching "{{searchQuery}}"',
+                "query": searchQuery,
+                "done": False,
             },
-            user,
+        }
+    )
+
+    try:
+        logging.info(
+        f"loop start  {time.time()}"
         )
-
-        response = res["choices"][0]["message"]["content"]
-
-        try:
-            bracket_start = response.find("{")
-            bracket_end = response.rfind("}") + 1
-
-            if bracket_start == -1 or bracket_end == -1:
-                raise Exception("No JSON object found in the response")
-
-            response = response[bracket_start:bracket_end]
-            queries = json.loads(response)
-            queries = queries.get("queries", [])
-        except Exception as e:
-            queries = [response]
-
-    except Exception as e:
-        log.exception(e)
-        queries = [user_message]
-
-    if len(queries) == 0:
-        await event_emitter(
-            {
-                "type": "status",
-                "data": {
-                    "action": "web_search",
-                    "description": "No search query generated",
-                    "done": True,
-                },
-            }
-        )
-        return form_data
-
-    all_results = []
-
-    for searchQuery in queries:
-        await event_emitter(
-            {
-                "type": "status",
-                "data": {
-                    "action": "web_search",
-                    "description": 'Searching "{{searchQuery}}"',
-                    "query": searchQuery,
-                    "done": False,
-                },
-            }
-        )
-
-        try:
-            results = await process_web_search(
-                request,
-                SearchForm(
-                    **{
-                        "query": searchQuery,
-                    }
+        print(f'loop start  {time.time()}"')
+        # Offload process_web_search to a separate thread
+        loop = asyncio.get_running_loop()
+        with ThreadPoolExecutor() as executor:
+            results = await loop.run_in_executor(
+                executor,
+                lambda: process_web_search(
+                    request,
+                    SearchForm(
+                        **{
+                            "query": searchQuery,
+                        }
+                    ),
+                    user,
                 ),
-                user=user,
             )
 
-            if results:
-                all_results.append(results)
-                files = form_data.get("files", [])
-
-                if results.get("collection_name"):
-                    files.append(
-                        {
-                            "collection_name": results["collection_name"],
-                            "name": searchQuery,
-                            "type": "web_search",
-                            "urls": results["filenames"],
-                        }
-                    )
-                elif results.get("docs"):
-                    files.append(
-                        {
-                            "docs": results.get("docs", []),
-                            "name": searchQuery,
-                            "type": "web_search",
-                            "urls": results["filenames"],
-                        }
-                    )
-
-                form_data["files"] = files
-        except Exception as e:
-            log.exception(e)
+        if results:
             await event_emitter(
                 {
                     "type": "status",
                     "data": {
                         "action": "web_search",
-                        "description": 'Error searching "{{searchQuery}}"',
+                        "description": "Searched {{count}} sites",
+                        "query": searchQuery,
+                        "urls": results["filenames"],
+                        "done": True,
+                    },
+                }
+            )
+
+            files = form_data.get("files", [])
+            files.append(
+                {
+                    "collection_name": results["collection_name"],
+                    "name": searchQuery,
+                    "type": "web_search_results",
+                    "urls": results["filenames"],
+                }
+            )
+            form_data["files"] = files
+        else:
+            await event_emitter(
+                {
+                    "type": "status",
+                    "data": {
+                        "action": "web_search",
+                        "description": "No search results found",
                         "query": searchQuery,
                         "done": True,
                         "error": True,
                     },
                 }
             )
-
-    if all_results:
-        urls = []
-        for results in all_results:
-            if "filenames" in results:
-                urls.extend(results["filenames"])
-
+        logging.info(
+        f"loop end  {time.time()}"
+        )  
+        print(f'loop end  {time.time()}')          
+    except Exception as e:
+        log.exception(e)
         await event_emitter(
             {
                 "type": "status",
                 "data": {
                     "action": "web_search",
-                    "description": "Searched {{count}} sites",
-                    "urls": urls,
-                    "done": True,
-                },
-            }
-        )
-    else:
-        await event_emitter(
-            {
-                "type": "status",
-                "data": {
-                    "action": "web_search",
-                    "description": "No search results found",
+                    "description": 'Error searching "{{searchQuery}}"',
+                    "query": searchQuery,
                     "done": True,
                     "error": True,
                 },
@@ -519,7 +537,6 @@ async def chat_completion_files_handler(
     sources = []
 
     if files := body.get("metadata", {}).get("files", None):
-        queries = []
         try:
             queries_response = await generate_queries(
                 request,
@@ -545,8 +562,8 @@ async def chat_completion_files_handler(
                 queries_response = {"queries": [queries_response]}
 
             queries = queries_response.get("queries", [])
-        except:
-            pass
+        except Exception as e:
+            queries = []
 
         if len(queries) == 0:
             queries = [get_last_user_message(body["messages"])]
@@ -558,7 +575,6 @@ async def chat_completion_files_handler(
                 sources = await loop.run_in_executor(
                     executor,
                     lambda: get_sources_from_files(
-                        request=request,
                         files=files,
                         queries=queries,
                         embedding_function=lambda query: request.app.state.EMBEDDING_FUNCTION(
@@ -568,9 +584,9 @@ async def chat_completion_files_handler(
                         reranking_function=request.app.state.rf,
                         r=request.app.state.config.RELEVANCE_THRESHOLD,
                         hybrid_search=request.app.state.config.ENABLE_RAG_HYBRID_SEARCH,
-                        full_context=request.app.state.config.RAG_FULL_CONTEXT,
                     ),
                 )
+
         except Exception as e:
             log.exception(e)
 
@@ -658,6 +674,7 @@ async def process_chat_payload(request, form_data, metadata, user, model):
     user_message = get_last_user_message(form_data["messages"])
     model_knowledge = model.get("info", {}).get("meta", {}).get("knowledge", False)
 
+    
     if model_knowledge:
         await event_emitter(
             {
@@ -698,25 +715,6 @@ async def process_chat_payload(request, form_data, metadata, user, model):
 
     variables = form_data.pop("variables", None)
 
-    # Process the form_data through the pipeline
-    try:
-        form_data = await process_pipeline_inlet_filter(
-            request, form_data, user, models
-        )
-    except Exception as e:
-        raise e
-
-    try:
-        form_data, flags = await process_filter_functions(
-            request=request,
-            filter_ids=get_sorted_filter_ids(model),
-            filter_type="inlet",
-            form_data=form_data,
-            extra_params=extra_params,
-        )
-    except Exception as e:
-        raise Exception(f"Error: {e}")
-
     features = form_data.pop("features", None)
     if features:
         if "web_search" in features and features["web_search"]:
@@ -739,9 +737,19 @@ async def process_chat_payload(request, form_data, metadata, user, model):
                 form_data["messages"],
             )
 
+    try:
+        form_data, flags = await process_filter_functions(
+            request=request,
+            filter_ids=get_sorted_filter_ids(model),
+            filter_type="inlet",
+            form_data=form_data,
+            extra_params=extra_params,
+        )
+    except Exception as e:
+        raise Exception(f"Error: {e}")
+
     tool_ids = form_data.pop("tool_ids", None)
     files = form_data.pop("files", None)
-
     # Remove files duplicates
     if files:
         files = list({json.dumps(f, sort_keys=True): f for f in files}.values())
@@ -799,9 +807,11 @@ async def process_chat_payload(request, form_data, metadata, user, model):
     if len(sources) > 0:
         context_string = ""
         for source_idx, source in enumerate(sources):
+            source_id = source.get("source", {}).get("name", "")
+
             if "document" in source:
                 for doc_idx, doc_context in enumerate(source["document"]):
-                    context_string += f"<source><source_id>{source_idx}</source_id><source_context>{doc_context}</source_context></source>\n"
+                    context_string += f"<source><source_id>{doc_idx}</source_id><source_context>{doc_context}</source_context></source>\n"
 
         context_string = context_string.strip()
         prompt = get_last_user_message(form_data["messages"])
@@ -818,7 +828,7 @@ async def process_chat_payload(request, form_data, metadata, user, model):
 
         # Workaround for Ollama 2.0+ system prompt issue
         # TODO: replace with add_or_update_system_message
-        if model.get("owned_by") == "ollama":
+        if model["owned_by"] == "ollama":
             form_data["messages"] = prepend_to_first_user_message_content(
                 rag_template(
                     request.app.state.config.RAG_TEMPLATE, context_string, prompt
@@ -1026,7 +1036,6 @@ async def process_chat_response(
                         webhook_url = Users.get_user_webhook_url_by_id(user.id)
                         if webhook_url:
                             post_webhook(
-                                request.app.state.WEBUI_NAME,
                                 webhook_url,
                                 f"{title} - {request.app.state.config.WEBUI_URL}/c/{metadata['chat_id']}\n\n{content}",
                                 {
@@ -1049,21 +1058,6 @@ async def process_chat_response(
         for content_type in ["text/event-stream", "application/x-ndjson"]
     ):
         return response
-
-    extra_params = {
-        "__event_emitter__": event_emitter,
-        "__event_call__": event_caller,
-        "__user__": {
-            "id": user.id,
-            "email": user.email,
-            "name": user.name,
-            "role": user.role,
-        },
-        "__metadata__": metadata,
-        "__request__": request,
-        "__model__": metadata.get("model"),
-    }
-    filter_ids = get_sorted_filter_ids(form_data.get("model"))
 
     # Streaming response
     if event_emitter and event_caller:
@@ -1144,12 +1138,12 @@ async def process_chat_response(
 
                         if reasoning_duration is not None:
                             if raw:
-                                content = f'{content}\n<{block["start_tag"]}>{block["content"]}<{block["end_tag"]}>\n'
+                                content = f'{content}\n<{block["tag"]}>{block["content"]}</{block["tag"]}>\n'
                             else:
                                 content = f'{content}\n<details type="reasoning" done="true" duration="{reasoning_duration}">\n<summary>Thought for {reasoning_duration} seconds</summary>\n{reasoning_display_content}\n</details>\n'
                         else:
                             if raw:
-                                content = f'{content}\n<{block["start_tag"]}>{block["content"]}<{block["end_tag"]}>\n'
+                                content = f'{content}\n<{block["tag"]}>{block["content"]}</{block["tag"]}>\n'
                             else:
                                 content = f'{content}\n<details type="reasoning" done="false">\n<summary>Thinking…</summary>\n{reasoning_display_content}\n</details>\n'
 
@@ -1190,46 +1184,6 @@ async def process_chat_response(
 
                 return content.strip()
 
-            def convert_content_blocks_to_messages(content_blocks):
-                messages = []
-
-                temp_blocks = []
-                for idx, block in enumerate(content_blocks):
-                    if block["type"] == "tool_calls":
-                        messages.append(
-                            {
-                                "role": "assistant",
-                                "content": serialize_content_blocks(temp_blocks),
-                                "tool_calls": block.get("content"),
-                            }
-                        )
-
-                        results = block.get("results", [])
-
-                        for result in results:
-                            messages.append(
-                                {
-                                    "role": "tool",
-                                    "tool_call_id": result["tool_call_id"],
-                                    "content": result["content"],
-                                }
-                            )
-                        temp_blocks = []
-                    else:
-                        temp_blocks.append(block)
-
-                if temp_blocks:
-                    content = serialize_content_blocks(temp_blocks)
-                    if content:
-                        messages.append(
-                            {
-                                "role": "assistant",
-                                "content": content,
-                            }
-                        )
-
-                return messages
-
             def tag_content_handler(content_type, tags, content, content_blocks):
                 end_flag = False
 
@@ -1245,9 +1199,9 @@ async def process_chat_response(
                     return attributes
 
                 if content_blocks[-1]["type"] == "text":
-                    for start_tag, end_tag in tags:
+                    for tag in tags:
                         # Match start tag e.g., <tag> or <tag attr="value">
-                        start_tag_pattern = rf"<{re.escape(start_tag)}(\s.*?)?>"
+                        start_tag_pattern = rf"<{tag}(\s.*?)?>"
                         match = re.search(start_tag_pattern, content)
                         if match:
                             attr_content = (
@@ -1280,8 +1234,7 @@ async def process_chat_response(
                             content_blocks.append(
                                 {
                                     "type": content_type,
-                                    "start_tag": start_tag,
-                                    "end_tag": end_tag,
+                                    "tag": tag,
                                     "attributes": attributes,
                                     "content": "",
                                     "started_at": time.time(),
@@ -1293,10 +1246,9 @@ async def process_chat_response(
 
                             break
                 elif content_blocks[-1]["type"] == content_type:
-                    start_tag = content_blocks[-1]["start_tag"]
-                    end_tag = content_blocks[-1]["end_tag"]
+                    tag = content_blocks[-1]["tag"]
                     # Match end tag e.g., </tag>
-                    end_tag_pattern = rf"<{re.escape(end_tag)}>"
+                    end_tag_pattern = rf"</{tag}>"
 
                     # Check if the content has the end tag
                     if re.search(end_tag_pattern, content):
@@ -1304,7 +1256,7 @@ async def process_chat_response(
 
                         block_content = content_blocks[-1]["content"]
                         # Strip start and end tags from the content
-                        start_tag_pattern = rf"<{re.escape(start_tag)}(.*?)>"
+                        start_tag_pattern = rf"<{tag}(.*?)>"
                         block_content = re.sub(
                             start_tag_pattern, "", block_content
                         ).strip()
@@ -1369,7 +1321,7 @@ async def process_chat_response(
 
                         # Clean processed content
                         content = re.sub(
-                            rf"<{re.escape(start_tag)}(.*?)>(.|\n)*?<{re.escape(end_tag)}>",
+                            rf"<{tag}(.*?)>(.|\n)*?</{tag}>",
                             "",
                             content,
                             flags=re.DOTALL,
@@ -1382,22 +1334,7 @@ async def process_chat_response(
             )
 
             tool_calls = []
-
-            last_assistant_message = None
-            try:
-                if form_data["messages"][-1]["role"] == "assistant":
-                    last_assistant_message = get_last_assistant_message(
-                        form_data["messages"]
-                    )
-            except Exception as e:
-                pass
-
-            content = (
-                message.get("content", "")
-                if message
-                else last_assistant_message if last_assistant_message else ""
-            )
-
+            content = message.get("content", "") if message else ""
             content_blocks = [
                 {
                     "type": "text",
@@ -1407,24 +1344,19 @@ async def process_chat_response(
 
             # We might want to disable this by default
             DETECT_REASONING = True
-            DETECT_SOLUTION = True
             DETECT_CODE_INTERPRETER = metadata.get("features", {}).get(
                 "code_interpreter", False
             )
 
             reasoning_tags = [
-                ("think", "/think"),
-                ("thinking", "/thinking"),
-                ("reason", "/reason"),
-                ("reasoning", "/reasoning"),
-                ("thought", "/thought"),
-                ("Thought", "/Thought"),
-                ("|begin_of_thought|", "|end_of_thought|"),
+                "think",
+                "thinking",
+                "reason",
+                "reasoning",
+                "thought",
+                "Thought",
             ]
-
-            code_interpreter_tags = [("code_interpreter", "/code_interpreter")]
-
-            solution_tags = [("|begin_of_solution|", "|end_of_solution|")]
+            code_interpreter_tags = ["code_interpreter"]
 
             try:
                 for event in events:
@@ -1468,154 +1400,119 @@ async def process_chat_response(
                         try:
                             data = json.loads(data)
 
-                            data, _ = await process_filter_functions(
-                                request=request,
-                                filter_ids=filter_ids,
-                                filter_type="stream",
-                                form_data=data,
-                                extra_params=extra_params,
-                            )
+                            if "selected_model_id" in data:
+                                model_id = data["selected_model_id"]
+                                Chats.upsert_message_to_chat_by_id_and_message_id(
+                                    metadata["chat_id"],
+                                    metadata["message_id"],
+                                    {
+                                        "selectedModelId": model_id,
+                                    },
+                                )
+                            else:
+                                choices = data.get("choices", [])
+                                if not choices:
+                                    continue
 
-                            if data:
-                                if "selected_model_id" in data:
-                                    model_id = data["selected_model_id"]
-                                    Chats.upsert_message_to_chat_by_id_and_message_id(
-                                        metadata["chat_id"],
-                                        metadata["message_id"],
-                                        {
-                                            "selectedModelId": model_id,
-                                        },
-                                    )
-                                else:
-                                    choices = data.get("choices", [])
-                                    if not choices:
-                                        usage = data.get("usage", {})
-                                        if usage:
-                                            await event_emitter(
-                                                {
-                                                    "type": "chat:completion",
-                                                    "data": {
-                                                        "usage": usage,
-                                                    },
-                                                }
-                                            )
-                                        continue
+                                delta = choices[0].get("delta", {})
+                                delta_tool_calls = delta.get("tool_calls", None)
 
-                                    delta = choices[0].get("delta", {})
-                                    delta_tool_calls = delta.get("tool_calls", None)
+                                if delta_tool_calls:
+                                    for delta_tool_call in delta_tool_calls:
+                                        tool_call_index = delta_tool_call.get("index")
 
-                                    if delta_tool_calls:
-                                        for delta_tool_call in delta_tool_calls:
-                                            tool_call_index = delta_tool_call.get(
-                                                "index"
-                                            )
+                                        if tool_call_index is not None:
+                                            if (
+                                                len(response_tool_calls)
+                                                <= tool_call_index
+                                            ):
+                                                response_tool_calls.append(
+                                                    delta_tool_call
+                                                )
+                                            else:
+                                                delta_name = delta_tool_call.get(
+                                                    "function", {}
+                                                ).get("name")
+                                                delta_arguments = delta_tool_call.get(
+                                                    "function", {}
+                                                ).get("arguments")
 
-                                            if tool_call_index is not None:
-                                                if (
-                                                    len(response_tool_calls)
-                                                    <= tool_call_index
-                                                ):
-                                                    response_tool_calls.append(
-                                                        delta_tool_call
-                                                    )
-                                                else:
-                                                    delta_name = delta_tool_call.get(
-                                                        "function", {}
-                                                    ).get("name")
-                                                    delta_arguments = (
-                                                        delta_tool_call.get(
-                                                            "function", {}
-                                                        ).get("arguments")
-                                                    )
+                                                if delta_name:
+                                                    response_tool_calls[
+                                                        tool_call_index
+                                                    ]["function"]["name"] += delta_name
 
-                                                    if delta_name:
-                                                        response_tool_calls[
-                                                            tool_call_index
-                                                        ]["function"][
-                                                            "name"
-                                                        ] += delta_name
+                                                if delta_arguments:
+                                                    response_tool_calls[
+                                                        tool_call_index
+                                                    ]["function"][
+                                                        "arguments"
+                                                    ] += delta_arguments
 
-                                                    if delta_arguments:
-                                                        response_tool_calls[
-                                                            tool_call_index
-                                                        ]["function"][
-                                                            "arguments"
-                                                        ] += delta_arguments
+                                value = delta.get("content")
 
-                                    value = delta.get("content")
+                                if value:
+                                    content = f"{content}{value}"
 
-                                    if value:
-                                        content = f"{content}{value}"
-
-                                        if not content_blocks:
-                                            content_blocks.append(
-                                                {
-                                                    "type": "text",
-                                                    "content": "",
-                                                }
-                                            )
-
-                                        content_blocks[-1]["content"] = (
-                                            content_blocks[-1]["content"] + value
+                                    if not content_blocks:
+                                        content_blocks.append(
+                                            {
+                                                "type": "text",
+                                                "content": "",
+                                            }
                                         )
 
-                                        if DETECT_REASONING:
-                                            content, content_blocks, _ = (
-                                                tag_content_handler(
-                                                    "reasoning",
-                                                    reasoning_tags,
-                                                    content,
-                                                    content_blocks,
-                                                )
-                                            )
+                                    content_blocks[-1]["content"] = (
+                                        content_blocks[-1]["content"] + value
+                                    )
 
-                                        if DETECT_CODE_INTERPRETER:
-                                            content, content_blocks, end = (
-                                                tag_content_handler(
-                                                    "code_interpreter",
-                                                    code_interpreter_tags,
-                                                    content,
-                                                    content_blocks,
-                                                )
+                                    if DETECT_REASONING:
+                                        content, content_blocks, _ = (
+                                            tag_content_handler(
+                                                "reasoning",
+                                                reasoning_tags,
+                                                content,
+                                                content_blocks,
                                             )
+                                        )
 
-                                            if end:
-                                                break
-
-                                        if DETECT_SOLUTION:
-                                            content, content_blocks, _ = (
-                                                tag_content_handler(
-                                                    "solution",
-                                                    solution_tags,
-                                                    content,
-                                                    content_blocks,
-                                                )
+                                    if DETECT_CODE_INTERPRETER:
+                                        content, content_blocks, end = (
+                                            tag_content_handler(
+                                                "code_interpreter",
+                                                code_interpreter_tags,
+                                                content,
+                                                content_blocks,
                                             )
+                                        )
 
-                                        if ENABLE_REALTIME_CHAT_SAVE:
-                                            # Save message in the database
-                                            Chats.upsert_message_to_chat_by_id_and_message_id(
-                                                metadata["chat_id"],
-                                                metadata["message_id"],
-                                                {
-                                                    "content": serialize_content_blocks(
-                                                        content_blocks
-                                                    ),
-                                                },
-                                            )
-                                        else:
-                                            data = {
+                                        if end:
+                                            break
+
+                                    if ENABLE_REALTIME_CHAT_SAVE:
+                                        # Save message in the database
+                                        Chats.upsert_message_to_chat_by_id_and_message_id(
+                                            metadata["chat_id"],
+                                            metadata["message_id"],
+                                            {
                                                 "content": serialize_content_blocks(
                                                     content_blocks
                                                 ),
-                                            }
+                                            },
+                                        )
+                                    else:
+                                        data = {
+                                            "content": serialize_content_blocks(
+                                                content_blocks
+                                            ),
+                                        }
 
-                                await event_emitter(
-                                    {
-                                        "type": "chat:completion",
-                                        "data": data,
-                                    }
-                                )
+                            await event_emitter(
+                                {
+                                    "type": "chat:completion",
+                                    "data": data,
+                                }
+                            )
                         except Exception as e:
                             done = "data: [DONE]" in line
                             if done:
@@ -1678,6 +1575,7 @@ async def process_chat_response(
 
                     results = []
                     for tool_call in response_tool_calls:
+                        print("\n\n" + str(tool_call) + "\n\n")
                         tool_call_id = tool_call.get("id", "")
                         tool_name = tool_call.get("function", {}).get("name", "")
 
@@ -1743,10 +1641,23 @@ async def process_chat_response(
                             {
                                 "model": model_id,
                                 "stream": True,
-                                "tools": form_data["tools"],
                                 "messages": [
                                     *form_data["messages"],
-                                    *convert_content_blocks_to_messages(content_blocks),
+                                    {
+                                        "role": "assistant",
+                                        "content": serialize_content_blocks(
+                                            content_blocks, raw=True
+                                        ),
+                                        "tool_calls": response_tool_calls,
+                                    },
+                                    *[
+                                        {
+                                            "role": "tool",
+                                            "tool_call_id": result["tool_call_id"],
+                                            "content": result["content"],
+                                        }
+                                        for result in results
+                                    ],
                                 ],
                             },
                             user,
@@ -1820,7 +1731,6 @@ async def process_chat_response(
                                             == "password"
                                             else None
                                         ),
-                                        request.app.state.config.CODE_INTERPRETER_JUPYTER_TIMEOUT,
                                     )
                                 else:
                                     output = {
@@ -1914,10 +1824,7 @@ async def process_chat_response(
                             }
                         )
 
-                        log.info(f"content_blocks={content_blocks}")
-                        log.info(
-                            f"serialize_content_blocks={serialize_content_blocks(content_blocks)}"
-                        )
+                        print(content_blocks, serialize_content_blocks(content_blocks))
 
                         try:
                             res = await generate_chat_completion(
@@ -1968,7 +1875,6 @@ async def process_chat_response(
                     webhook_url = Users.get_user_webhook_url_by_id(user.id)
                     if webhook_url:
                         post_webhook(
-                            request.app.state.WEBUI_NAME,
                             webhook_url,
                             f"{title} - {request.app.state.config.WEBUI_URL}/c/{metadata['chat_id']}\n\n{content}",
                             {
@@ -1988,7 +1894,7 @@ async def process_chat_response(
 
                 await background_tasks_handler()
             except asyncio.CancelledError:
-                log.warning("Task was cancelled!")
+                print("Task was cancelled!")
                 await event_emitter({"type": "task-cancelled"})
 
                 if not ENABLE_REALTIME_CHAT_SAVE:
@@ -2009,34 +1915,17 @@ async def process_chat_response(
         return {"status": True, "task_id": task_id}
 
     else:
+
         # Fallback to the original response
         async def stream_wrapper(original_generator, events):
             def wrap_item(item):
                 return f"data: {item}\n\n"
 
             for event in events:
-                event, _ = await process_filter_functions(
-                    request=request,
-                    filter_ids=filter_ids,
-                    filter_type="stream",
-                    form_data=event,
-                    extra_params=extra_params,
-                )
-
-                if event:
-                    yield wrap_item(json.dumps(event))
+                yield wrap_item(json.dumps(event))
 
             async for data in original_generator:
-                data, _ = await process_filter_functions(
-                    request=request,
-                    filter_ids=filter_ids,
-                    filter_type="stream",
-                    form_data=data,
-                    extra_params=extra_params,
-                )
-
-                if data:
-                    yield data
+                yield data
 
         return StreamingResponse(
             stream_wrapper(response.body_iterator, events),

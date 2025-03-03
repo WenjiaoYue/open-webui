@@ -1,7 +1,8 @@
 <script>
-	import { getContext, onMount, tick } from 'svelte';
+	import { getContext, createEventDispatcher, onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 
+	const dispatch = createEventDispatcher();
 	const i18n = getContext('i18n');
 
 	import CodeEditor from '$lib/components/common/CodeEditor.svelte';
@@ -13,8 +14,6 @@
 	let formElement = null;
 	let loading = false;
 	let showConfirm = false;
-
-	export let onSave = () => {};
 
 	export let edit = false;
 	export let clone = false;
@@ -257,7 +256,7 @@ class Pipe:
 
 	const saveHandler = async () => {
 		loading = true;
-		onSave({
+		dispatch('save', {
 			id,
 			name,
 			meta,
@@ -301,7 +300,7 @@ class Pipe:
 			<div class="flex flex-col flex-1 overflow-auto h-0 rounded-lg">
 				<div class="w-full mb-2 flex flex-col gap-0.5">
 					<div class="flex w-full items-center">
-						<div class=" shrink-0 mr-2">
+						<div class=" flex-shrink-0 mr-2">
 							<Tooltip content={$i18n.t('Back')}>
 								<button
 									class="w-full text-left text-sm py-1.5 px-1 rounded-lg dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-gray-850"
@@ -318,7 +317,7 @@ class Pipe:
 						<div class="flex-1">
 							<Tooltip content={$i18n.t('e.g. My Filter')} placement="top-start">
 								<input
-									class="w-full text-2xl font-medium bg-transparent outline-hidden font-primary"
+									class="w-full text-2xl font-medium bg-transparent outline-none font-primary"
 									type="text"
 									placeholder={$i18n.t('Function Name')}
 									bind:value={name}
@@ -334,13 +333,13 @@ class Pipe:
 
 					<div class=" flex gap-2 px-1 items-center">
 						{#if edit}
-							<div class="text-sm text-gray-500 shrink-0">
+							<div class="text-sm text-gray-500 flex-shrink-0">
 								{id}
 							</div>
 						{:else}
 							<Tooltip className="w-full" content={$i18n.t('e.g. my_filter')} placement="top-start">
 								<input
-									class="w-full text-sm disabled:text-gray-500 bg-transparent outline-hidden"
+									class="w-full text-sm disabled:text-gray-500 bg-transparent outline-none"
 									type="text"
 									placeholder={$i18n.t('Function ID')}
 									bind:value={id}
@@ -356,7 +355,7 @@ class Pipe:
 							placement="top-start"
 						>
 							<input
-								class="w-full text-sm bg-transparent outline-hidden"
+								class="w-full text-sm bg-transparent outline-none"
 								type="text"
 								placeholder={$i18n.t('Function Description')}
 								bind:value={meta.description}
@@ -372,10 +371,10 @@ class Pipe:
 						value={content}
 						lang="python"
 						{boilerplate}
-						onChange={(e) => {
-							_content = e;
+						on:change={(e) => {
+							_content = e.detail.value;
 						}}
-						onSave={async () => {
+						on:save={async () => {
 							if (formElement) {
 								formElement.requestSubmit();
 							}

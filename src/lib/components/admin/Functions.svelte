@@ -65,9 +65,9 @@
 			return null;
 		});
 
-		toast.success($i18n.t('Redirecting you to Open WebUI Community'));
+		toast.success($i18n.t('Redirecting you to DCAIAgent Community'));
 
-		const url = 'https://openwebui.com';
+		const url = 'https://github.com/opea-project';
 
 		const tab = await window.open(`${url}/functions/create`, '_blank');
 
@@ -180,19 +180,19 @@
 
 		window.addEventListener('keydown', onKeyDown);
 		window.addEventListener('keyup', onKeyUp);
-		window.addEventListener('blur-sm', onBlur);
+		window.addEventListener('blur', onBlur);
 
 		return () => {
 			window.removeEventListener('keydown', onKeyDown);
 			window.removeEventListener('keyup', onKeyUp);
-			window.removeEventListener('blur-sm', onBlur);
+			window.removeEventListener('blur', onBlur);
 		};
 	});
 </script>
 
 <svelte:head>
 	<title>
-		{$i18n.t('Functions')} | {$WEBUI_NAME}
+		{$i18n.t('Functions')} | {$i18n.t($WEBUI_NAME)}
 	</title>
 </svelte:head>
 
@@ -211,7 +211,7 @@
 				<Search className="size-3.5" />
 			</div>
 			<input
-				class=" w-full text-sm pr-4 py-1 rounded-r-xl outline-hidden bg-transparent"
+				class=" w-full text-sm pr-4 py-1 rounded-r-xl outline-none bg-transparent"
 				bind:value={query}
 				placeholder={$i18n.t('Search Functions')}
 			/>
@@ -241,14 +241,14 @@
 					<div class=" flex-1 self-center pl-1">
 						<div class=" font-semibold flex items-center gap-1.5">
 							<div
-								class=" text-xs font-bold px-1 rounded-sm uppercase line-clamp-1 bg-gray-500/20 text-gray-700 dark:text-gray-200"
+								class=" text-xs font-bold px-1 rounded uppercase line-clamp-1 bg-gray-500/20 text-gray-700 dark:text-gray-200"
 							>
 								{func.type}
 							</div>
 
 							{#if func?.meta?.manifest?.version}
 								<div
-									class="text-xs font-bold px-1 rounded-sm line-clamp-1 bg-gray-500/20 text-gray-700 dark:text-gray-200"
+									class="text-xs font-bold px-1 rounded line-clamp-1 bg-gray-500/20 text-gray-700 dark:text-gray-200"
 								>
 									v{func?.meta?.manifest?.version ?? ''}
 								</div>
@@ -260,7 +260,7 @@
 						</div>
 
 						<div class="flex gap-1.5 px-1">
-							<div class=" text-gray-500 text-xs font-medium shrink-0">{func.id}</div>
+							<div class=" text-gray-500 text-xs font-medium flex-shrink-0">{func.id}</div>
 
 							<div class=" text-xs overflow-hidden text-ellipsis line-clamp-1">
 								{func.meta.description}
@@ -469,12 +469,12 @@
 {#if $config?.features.enable_community_sharing}
 	<div class=" my-16">
 		<div class=" text-xl font-medium mb-1 line-clamp-1">
-			{$i18n.t('Made by Open WebUI Community')}
+			{$i18n.t('Made by DCAIAgent Community')}
 		</div>
 
 		<a
 			class=" flex cursor-pointer items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-850 w-full mb-2 px-3.5 py-1.5 rounded-xl transition"
-			href="https://openwebui.com/#open-webui-community"
+			href="https://github.com/opea-project"
 			target="_blank"
 		>
 			<div class=" self-center">

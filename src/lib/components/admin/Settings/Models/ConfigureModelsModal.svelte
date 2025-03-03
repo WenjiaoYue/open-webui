@@ -16,8 +16,6 @@
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Minus from '$lib/components/icons/Minus.svelte';
 	import Plus from '$lib/components/icons/Plus.svelte';
-	import ChevronUp from '$lib/components/icons/ChevronUp.svelte';
-	import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
 
 	export let show = false;
 	export let initHandler = () => {};
@@ -27,9 +25,6 @@
 	let selectedModelId = '';
 	let defaultModelIds = [];
 	let modelIds = [];
-
-	let sortKey = '';
-	let sortOrder = '';
 
 	let loading = false;
 	let showResetModal = false;
@@ -76,9 +71,6 @@
 			// Add remaining IDs not in MODEL_ORDER_LIST, sorted alphabetically
 			...allModelIds.filter((id) => !orderedSet.has(id)).sort((a, b) => a.localeCompare(b))
 		];
-
-		sortKey = '';
-		sortOrder = '';
 	};
 	const submitHandler = async () => {
 		loading = true;
@@ -153,45 +145,9 @@
 					>
 						<div>
 							<div class="flex flex-col w-full">
-								<button
-									class="mb-1 flex gap-2"
-									type="button"
-									on:click={() => {
-										sortKey = 'model';
-
-										if (sortOrder === 'asc') {
-											sortOrder = 'desc';
-										} else {
-											sortOrder = 'asc';
-										}
-
-										modelIds = modelIds
-											.filter((id) => id !== '')
-											.sort((a, b) => {
-												const nameA = $models.find((model) => model.id === a)?.name || a;
-												const nameB = $models.find((model) => model.id === b)?.name || b;
-												return sortOrder === 'desc'
-													? nameA.localeCompare(nameB)
-													: nameB.localeCompare(nameA);
-											});
-									}}
-								>
+								<div class="mb-1 flex justify-between">
 									<div class="text-xs text-gray-500">{$i18n.t('Reorder Models')}</div>
-
-									{#if sortKey === 'model'}
-										<span class="font-normal self-center">
-											{#if sortOrder === 'asc'}
-												<ChevronUp className="size-3" />
-											{:else}
-												<ChevronDown className="size-3" />
-											{/if}
-										</span>
-									{:else}
-										<span class="invisible">
-											<ChevronUp className="size-3" />
-										</span>
-									{/if}
-								</button>
+								</div>
 
 								<ModelList bind:modelIds />
 							</div>
@@ -209,7 +165,7 @@
 									<select
 										class="w-full py-1 text-sm rounded-lg bg-transparent {selectedModelId
 											? ''
-											: 'text-gray-500'} placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-hidden"
+											: 'text-gray-500'} placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-none"
 										bind:value={selectedModelId}
 									>
 										<option value="">{$i18n.t('Select a model')}</option>
@@ -230,7 +186,7 @@
 												<div class=" text-sm flex-1 py-1 rounded-lg">
 													{$models.find((model) => model.id === modelId)?.name}
 												</div>
-												<div class="shrink-0">
+												<div class="flex-shrink-0">
 													<button
 														type="button"
 														on:click={() => {

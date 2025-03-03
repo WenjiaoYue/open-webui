@@ -27,7 +27,7 @@
 		<div class="flex justify-between items-start">
 			<div class="text-xl font-semibold">
 				{$i18n.t('What’s New in')}
-				{$WEBUI_NAME}
+				{$i18n.t($WEBUI_NAME)}
 				<Confetti x={[-1, -0.25]} y={[0, 0.5]} />
 			</div>
 			<button
@@ -68,7 +68,7 @@
 								v{version} - {changelog[version].date}
 							</div>
 
-							<hr class="border-gray-100 dark:border-gray-850 my-2" />
+							<hr class=" dark:border-gray-800 my-2" />
 
 							{#each Object.keys(changelog[version]).filter((section) => section !== 'date') as section}
 								<div class="">
