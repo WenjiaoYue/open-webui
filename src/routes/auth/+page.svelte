@@ -16,6 +16,9 @@
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import OnBoarding from '$lib/components/OnBoarding.svelte';
 
+	// MicroSoft Login
+	import { MicrosoftAuthLogin, handleRedirect } from '$lib/auth/authService';
+
 	const i18n = getContext('i18n');
 
 	let loaded = false;
@@ -28,6 +31,7 @@
 
 	let ldapUsername = '';
 	let intelAccount = '';
+	let showLoading = false;
 
 	const setSessionUser = async (sessionUser) => {
 		if (sessionUser) {
@@ -37,7 +41,7 @@
 				localStorage.token = sessionUser.token;
 			}
 			console.log('setSessionUser -->', sessionUser.token);
-			
+
 			$socket.emit('user-join', { auth: { token: sessionUser.token } });
 			await user.set(sessionUser);
 			await config.set(await getBackendConfig());
@@ -54,6 +58,37 @@
 		await setSessionUser(sessionUser);
 	}
 
+	async function MicrosoftLogin() {
+		//
+		const loginResponse = await MicrosoftAuthLogin().catch((error) => {
+			toast.error(`${error}`);
+			return null;
+		});
+		console.log('loginResponse', loginResponse);
+
+		if (loginResponse) {
+			showLoading = true;
+			const current_email = loginResponse.account.username;
+			const name = loginResponse.account.name;
+			const password = loginResponse.account.username;
+
+			await userSignUp(name, current_email, password, generateInitialsImage(name)).catch(
+				(error) => {
+					return null;
+				}
+			);
+
+			const sessionUser = await userSignIn(current_email, password).catch((error) => {
+				toast.error(`${error}`);
+				return null;
+			});
+			console.log('sessionUser', sessionUser);
+			await setSessionUser(sessionUser);
+		} else {
+			toast.error(`用户名/密码错误，请使用CCR 账号登陆`);
+		}
+	}
+
 	const signInHandler = async () => {
 		// verify intel account
 		let tmpIntelAccount = '';
@@ -68,7 +103,7 @@
 		if (intelInfo) {
 			const current_email = intelInfo['user info dict'].email_address;
 			const name = intelInfo['user info dict'].idsid;
-			const password = intelInfo['user info dict'].id;
+			const password = intelInfo['user info dict'].email_address;
 
 			await userSignUp(name, current_email, password, generateInitialsImage(name)).catch(
 				(error) => {
@@ -145,6 +180,8 @@
 	let onboarding = false;
 
 	onMount(async () => {
+		handleRedirect();
+
 		if ($user !== undefined) {
 			await goto('/');
 		}
@@ -202,7 +239,7 @@
 			class="fixed bg-transparent min-h-screen w-full flex justify-center font-primary z-50 text-black dark:text-white"
 		>
 			<div class="w-full sm:max-w-md px-10 min-h-screen flex flex-col text-center">
-				{#if ($config?.features.auth_trusted_header ?? false) || $config?.features.auth === false}
+				{#if ($config?.features.auth_trusted_header ?? false) || $config?.features.auth === false || showLoading}
 					<div class=" my-auto pb-10 w-full">
 						<div
 							class="flex items-center justify-center gap-3 text-xl sm:text-2xl text-center font-semibold dark:text-gray-200"
@@ -218,49 +255,47 @@
 					</div>
 				{:else}
 					<div class="  my-auto pb-10 w-full dark:text-gray-100">
+						<button
+							class="flex justify-center items-center bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition w-full font-medium text-sm py-5"
+							on:click={MicrosoftLogin}
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21" class="size-6 mr-3">
+								<rect x="1" y="1" width="9" height="9" fill="#f25022" /><rect
+									x="1"
+									y="11"
+									width="9"
+									height="9"
+									fill="#00a4ef"
+								/><rect x="11" y="1" width="9" height="9" fill="#7fba00" /><rect
+									x="11"
+									y="11"
+									width="9"
+									height="9"
+									fill="#ffb900"
+								/>
+							</svg>
+							<span>{$i18n.t('Continue with {{provider}}', { provider: 'Microsoft' })}</span>
+						</button>
+
+						<div class="inline-flex items-center justify-center w-full">
+							<hr class="w-32 h-px my-4 border-0 dark:bg-gray-100/10 bg-gray-700/10" />
+								<span class="px-3 text-sm font-medium text-gray-900 dark:text-white bg-transparent"
+									>{$i18n.t('or')}</span
+								>
+
+							<hr class="w-32 h-px my-4 border-0 dark:bg-gray-100/10 bg-gray-700/10" />
+						</div>
+
 						<form
-							class=" flex flex-col justify-center"
+							class=" flex flex-col justify-center text-sm"
 							on:submit={(e) => {
 								e.preventDefault();
 								submitHandler();
 							}}
 						>
-							<div class="mb-1">
-								<h2 class="text-3xl md:text-4xl font-extrabold mb-2">
-									{#if $config?.onboarding ?? false}
-										{$i18n.t(`Get started with {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
-									{:else if mode === 'ldap'}
-										{$i18n.t(`Sign in to {{WEBUI_NAME}} with LDAP`, { WEBUI_NAME: $WEBUI_NAME })}
-									{:else if mode === 'signin'}
-										{$i18n.t(`Sign in`)}
-									{:else}
-										{$i18n.t(`Sign up to {{WEBUI_NAME}}`, { WEBUI_NAME: $WEBUI_NAME })}
-									{/if}
-								</h2>
-								<p class="mt-2 text-center text-sm leading-5 text-blue-500 max-w">
-									{$i18n.t(`or`)}
-
-									<a
-										href="#"
-										on:click={stayLogout}
-										class="font-medium text-blue-500 hover:text-blue-500 focus:outline-none underline transition ease-in-out duration-150"
-									>
-										{$i18n.t(`Stay logged out`)}
-									</a>
-								</p>
-
-								{#if $config?.onboarding ?? false}
-									<div class=" mt-1 text-xs font-medium text-gray-500">
-										ⓘ {$i18n.t($WEBUI_NAME)}
-										{$i18n.t(
-											'does not make any external connections, and your data stays securely on your locally hosted server.'
-										)}
-									</div>
-								{/if}
-							</div>
 
 							{#if $config?.features.enable_login_form || $config?.features.enable_ldap}
-								<div class="flex flex-col mt-4">
+								<div class="flex flex-col">
 									{#if mode === 'signup'}
 										<div class="mb-2">
 											<div class=" text-sm font-medium text-left mb-1">{$i18n.t('Name')}</div>
@@ -290,20 +325,20 @@
 										</div>
 									{:else}
 										<div class="mb-2">
-											<div class="block mb-2 font-extrabold text-left">
+											<div class="block mb-2  text-left">
 												Intel {$i18n.t('Account')}
 											</div>
 
 											<div class="flex">
 												<button
-													class="shrink-0 z-10 inline-flex items-center py-2.5 px-4 text-sm font-medium text-center text-gray-900 bg-gray-100 border-2 border-[#1662c7] border-r-0 dark:border-gray-700 dark:text-white  hover:bg-gray-200 focus:ring-4 focus:outline-none focus:ring-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-800"
+													class="shrink-0 z-10 inline-flex items-center py-1 px-4 text-sm font-medium text-center text-gray-900 bg-gray-100 border-2 border-[#1662c7] border-r-0 dark:border-gray-700 dark:text-white hover:bg-gray-200 focus:ring-4 focus:outline-none focus:ring-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-800"
 													type="button"
 													>CCR\
 												</button>
 												<input
 													bind:value={intelAccount}
 													type="text"
-													class="flex w-full p-4 leading-6 text-md font-extrabold placeholder-[#1662c7] bg-white shadow border-2 border-[#1662c7] border-l-0 "
+													class="flex w-full p-2 leading-6 text-sm font-extrabold placeholder-[#1662c7] bg-white shadow border-2 border-[#1662c7] border-l-0"
 													autocomplete="username"
 													placeholder={$i18n.t('Account')}
 													required
@@ -326,12 +361,12 @@
 									{/if}
 
 									<div>
-										<div class="block mb-2 font-extrabold text-left">{$i18n.t('Password')}</div>
+										<div class="block mb-1  text-left">{$i18n.t('Password')}</div>
 
 										<input
 											bind:value={password}
 											type="password"
-											class="inline-block w-full p-4 leading-6 text-md font-extrabold placeholder-[#1662c7] bg-white shadow border-2 border-[#1662c7]"
+											class="inline-block w-full p-2 leading-6 text-sm font-extrabold placeholder-[#1662c7] bg-white shadow border-2 border-[#1662c7]"
 											placeholder={$i18n.t('Enter Your Password')}
 											autocomplete="current-password"
 											name="current-password"
@@ -344,7 +379,7 @@
 								{#if $config?.features.enable_login_form || $config?.features.enable_ldap}
 									{#if mode === 'ldap'}
 										<button
-											class="bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition w-full rounded-full font-medium text-sm py-2.5"
+											class="bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition w-full rounded-full font-medium text-sm py-1"
 											type="submit"
 										>
 											{$i18n.t('Authenticate')}
@@ -352,7 +387,7 @@
 									{:else}
 										<button
 											class="
-												focus:ring-4 focus:ring-[#2557D6]/50 inline-block w-full py-4 px-6 mb-6 text-center text-lg leading-6 text-white font-extrabold bg-[#1662c7] hover:bg-[#1662c7]/90 border-3 border-[#1662c7] shadow transition duration-200"
+												focus:ring-4 focus:ring-[#2557D6]/50 inline-block w-full py-2 px-6 mb-2 text-center text-md leading-6 text-white font-extrabold bg-[#1662c7] hover:bg-[#1662c7]/90 bblock mb-2  text-leftder-3 border-[#1662c7] shadow transition duration-200"
 											type="submit"
 										>
 											{mode === 'signin'
@@ -361,7 +396,6 @@
 													? $i18n.t('Create Admin Account')
 													: $i18n.t('Create Account')}
 										</button>
-
 										{#if $config?.features.enable_signup && !($config?.onboarding ?? false)}
 											<div class=" mt-4 text-sm text-center">
 												{mode === 'signin'
@@ -387,6 +421,24 @@
 								{/if}
 							</div>
 						</form>
+						<div class="inline-flex items-center justify-center w-full">
+							<hr class="w-32 h-px  border-0 dark:bg-gray-100/10 bg-gray-700/10" />
+								<span class="px-3 text-sm font-medium text-gray-900 dark:text-white bg-transparent"
+									>{$i18n.t('or')}</span
+								>
+
+							<hr class="w-32 h-px  border-0 dark:bg-gray-100/10 bg-gray-700/10" />
+						</div>
+
+						<p class="mt-2 text-center text-sm leading-5 text-blue-500 max-w">
+							<a
+								href="#"
+								on:click={stayLogout}
+								class="font-medium text-blue-500 hover:text-blue-500 focus:outline-none underline transition ease-in-out duration-150"
+							>
+								{$i18n.t(`Stay logged out`)}
+							</a>
+						</p>
 
 						{#if Object.keys($config?.oauth?.providers ?? {}).length > 0}
 							<div class="inline-flex items-center justify-center w-full">

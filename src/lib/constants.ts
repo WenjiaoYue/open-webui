@@ -5,7 +5,7 @@ export const APP_NAME = 'DCAIAgent';
 
 export const WEBUI_HOSTNAME = browser ? (dev ? `${location.hostname}:8080` : ``) : '';
 export const WEBUI_BASE_URL = browser ? (dev ? `http://${WEBUI_HOSTNAME}` : ``) : ``;
-export const OPEA_API_BASE_URL = `https://deepseek.intel.com`;
+export const OPEA_API_BASE_URL = `http://10.165.117.28:9566`;
 export const WEBUI_API_BASE_URL = `${WEBUI_BASE_URL}/api/v1`;
 
 

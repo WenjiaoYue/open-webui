@@ -205,7 +205,7 @@
 	"Content Extraction": "内容提取",
 	"Context Length": "上下文长度",
 	"Continue Response": "继续生成",
-	"Continue with {{provider}}": "使用 {{provider}} 继续",
+	"Continue with {{provider}}": "使用 {{provider}} 账户登录",
 	"Continue with Email": "使用邮箱登录",
 	"Continue with LDAP": "使用 LDAP 登录",
 	"Control how message text is split for TTS requests. 'Punctuation' splits into sentences, 'paragraphs' splits into paragraphs, and 'none' keeps the message as a single string.": "控制消息文本如何拆分以用于 TTS 请求。“Punctuation”拆分为句子，“paragraphs”拆分为段落，“none”将消息保留为单个字符串。",

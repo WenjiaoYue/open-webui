@@ -46,7 +46,6 @@
 	export let disabled = false;
 	export let hide = false;
 	
-	$: open? console.log('log', open, attributes, grow, disabled, hide) : console.log('log', open, attributes, grow, disabled, hide);
 </script>
 
 <div {id} class={className}>

@@ -26,6 +26,8 @@
 	import AdjustmentsHorizontal from '../icons/AdjustmentsHorizontal.svelte';
 
 	import PencilSquare from '../icons/PencilSquare.svelte';
+
+	import ChartBar from '../icons/Map.svelte';
 	import { userSignOut } from '$lib/apis/auths';
 
 	const i18n = getContext('i18n');
@@ -85,6 +87,16 @@
 			
 			<div class="self-start flex flex-none items-center text-gray-600 dark:text-gray-400">
 				<!-- <div class="md:hidden flex self-center w-[1px] h-5 mx-2 bg-gray-300 dark:bg-stone-700" /> -->
+				<Tooltip content={$i18n.t('Grafana')}>
+					<a href="http://10.165.58.224:3000/?orgId=1" 
+					aria-label="Grafana" target="_blank" rel="noopener noreferrer"
+					class=" flex cursor-pointer px-2 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-850 transition"
+					>
+						<div class=" m-auto self-center">
+							<ChartBar className=" size-5" strokeWidth="2" />
+						</div>
+					</a>
+				</Tooltip>
 				{#if shareEnabled && chat && (chat.id || $temporaryChatEnabled)}
 					<Menu
 						{chat}

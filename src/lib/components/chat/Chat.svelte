@@ -1299,6 +1299,8 @@
 			timestamp: Math.floor(Date.now() / 1000), // Unix epoch
 			models: selectedModels
 		};
+		console.log('userMessage -- print format', userMessage);
+		
 
 		// Add message to history and Set currentId to messageId
 		history.messages[userMessageId] = userMessage;
@@ -1618,7 +1620,7 @@
 			return null;
 		});
 
-		console.log(res);
+		console.log('backend response res', res);
 
 		if (res) {
 			taskId = res.task_id;

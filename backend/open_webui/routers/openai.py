@@ -691,6 +691,10 @@ async def generate_chat_completion(
             trust_env=True, timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT)
         )
 
+        # ------request image ----
+        
+        # ------------------------
+
         r = await session.request(
             method="POST",
             url=f"{url}/chat/completions",
@@ -719,6 +723,7 @@ async def generate_chat_completion(
             },
         )
 
+       
         # Check if response is SSE
         if "text/event-stream" in r.headers.get("Content-Type", ""):
             streaming = True

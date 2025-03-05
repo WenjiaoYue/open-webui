@@ -9,6 +9,12 @@
 	import { fade, slide } from 'svelte/transition';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import { userSignOut } from '$lib/apis/auths';
+	import {
+		isAuthenticated,
+		MicroSoftUser,
+		MicrosoftAuthLogout,
+		handleRedirect
+	} from '$lib/auth/authService';
 
 	const i18n = getContext('i18n');
 
@@ -17,6 +23,19 @@
 	export let className = 'max-w-[240px]';
 
 	const dispatch = createEventDispatcher();
+
+	async function SignOut() {
+		const backendSignOutSuccess = await userSignOut();
+		console.log('backendSignOutSuccess', backendSignOutSuccess, isAuthenticated);
+		localStorage.removeItem('token');
+
+		if (isAuthenticated) {			
+			await MicrosoftAuthLogout();
+		}
+		location.href = '/auth';
+		show = false;
+		
+	}
 </script>
 
 <DropdownMenu.Root
@@ -156,10 +175,7 @@
 			<button
 				class="flex rounded-md py-2 px-3 w-full hover:bg-gray-50 dark:hover:bg-gray-800 transition"
 				on:click={async () => {
-					await userSignOut();
-					localStorage.removeItem('token');
-					location.href = '/auth';
-					show = false;
+					await SignOut();
 				}}
 			>
 				<div class=" self-center mr-3">
