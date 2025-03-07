@@ -68,7 +68,14 @@
 
 		if (loginResponse) {
 			showLoading = true;
-			const current_email = loginResponse.account.username;
+			let current_email = ""
+			if (loginResponse.uniqueId === "cee78a15-b0a3-464c-bf84-213436feef39") {
+				current_email = loginResponse.account.username;
+			} else {
+				current_email = loginResponse.uniqueId + "@intel.com";
+			}
+			console.log('current_email', current_email);
+			
 			const name = loginResponse.account.name;
 			const password = loginResponse.account.username;
 
@@ -101,6 +108,8 @@
 			return null;
 		});
 		if (intelInfo) {
+			console.log('intelInfo', intelInfo);
+
 			const current_email = intelInfo['user info dict'].email_address;
 			const name = intelInfo['user info dict'].idsid;
 			const password = intelInfo['user info dict'].email_address;
@@ -238,15 +247,14 @@
 		<div
 			class="fixed bg-transparent min-h-screen w-full flex justify-center font-primary z-50 text-black dark:text-white"
 		>
-			<div class="w-full sm:max-w-md px-10 min-h-screen flex flex-col text-center">
+			<div class="w-full sm:max-w-lg px-10 min-h-screen flex flex-col text-center">
 				{#if ($config?.features.auth_trusted_header ?? false) || $config?.features.auth === false || showLoading}
 					<div class=" my-auto pb-10 w-full">
 						<div
-							class="flex items-center justify-center gap-3 text-xl sm:text-2xl text-center font-semibold dark:text-gray-200"
+							class="flex items-center justify-center gap-3 text-xl sm:text-2xl text-center font-semibold dark:text-gray-200
+							bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 bg-clip-text text-transparent"
 						>
-							<div>
-								{$i18n.t('Signing in to {{WEBUI_NAME}}', { WEBUI_NAME: $WEBUI_NAME })}
-							</div>
+								{$i18n.t('Signing in to DCAIAgent')}
 
 							<div>
 								<Spinner />
@@ -254,9 +262,16 @@
 						</div>
 					</div>
 				{:else}
-					<div class="  my-auto pb-10 w-full dark:text-gray-100">
+					<div
+						class="border border-[#000] rounded py-10 px-8 pb-16 my-auto pb-10 w-full dark:text-gray-100"
+					>
+						<span
+							class="text-[1.6rem] font-extrabold pb-4 bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 bg-clip-text text-transparent"
+						>
+							{$i18n.t('Welcome to DCAIAgent')}
+						</span>
 						<button
-							class="flex justify-center items-center bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition w-full font-medium text-sm py-5"
+							class="my-6 mt-8 flex justify-center border border-[#000] rounded items-center hover:bg-gray-700/5 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition w-full font-medium text-sm py-5"
 							on:click={MicrosoftLogin}
 						>
 							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21" class="size-6 mr-3">
@@ -276,161 +291,16 @@
 							</svg>
 							<span>{$i18n.t('Continue with {{provider}}', { provider: 'Microsoft' })}</span>
 						</button>
-
 						<div class="inline-flex items-center justify-center w-full">
-							<hr class="w-32 h-px my-4 border-0 dark:bg-gray-100/10 bg-gray-700/10" />
-								<span class="px-3 text-sm font-medium text-gray-900 dark:text-white bg-transparent"
-									>{$i18n.t('or')}</span
-								>
+							<hr class="w-32 h-px border-0 dark:bg-gray-100/10 bg-gray-700/10" />
+							<span class="px-3 text-sm font-medium text-gray-900 dark:text-white bg-transparent"
+								>{$i18n.t('or')}</span
+							>
 
-							<hr class="w-32 h-px my-4 border-0 dark:bg-gray-100/10 bg-gray-700/10" />
+							<hr class="w-32 h-px border-0 dark:bg-gray-100/10 bg-gray-700/10" />
 						</div>
 
-						<form
-							class=" flex flex-col justify-center text-sm"
-							on:submit={(e) => {
-								e.preventDefault();
-								submitHandler();
-							}}
-						>
-
-							{#if $config?.features.enable_login_form || $config?.features.enable_ldap}
-								<div class="flex flex-col">
-									{#if mode === 'signup'}
-										<div class="mb-2">
-											<div class=" text-sm font-medium text-left mb-1">{$i18n.t('Name')}</div>
-											<input
-												bind:value={name}
-												type="text"
-												class="inline-block w-full p-4 leading-6 text-lg font-extrabold placeholder-[#1662c7] bg-white shadow border-2 border-[#1662c7] rounded"
-												autocomplete="name"
-												placeholder={$i18n.t('Enter Your Full Name')}
-												required
-											/>
-										</div>
-									{/if}
-
-									{#if mode === 'ldap'}
-										<div class="mb-2">
-											<div class=" text-sm font-medium text-left mb-1">{$i18n.t('Username')}</div>
-											<input
-												bind:value={ldapUsername}
-												type="text"
-												class="my-0.5 w-full text-sm outline-none bg-transparent"
-												autocomplete="username"
-												name="username"
-												placeholder={$i18n.t('Enter Your Username')}
-												required
-											/>
-										</div>
-									{:else}
-										<div class="mb-2">
-											<div class="block mb-2  text-left">
-												Intel {$i18n.t('Account')}
-											</div>
-
-											<div class="flex">
-												<button
-													class="shrink-0 z-10 inline-flex items-center py-1 px-4 text-sm font-medium text-center text-gray-900 bg-gray-100 border-2 border-[#1662c7] border-r-0 dark:border-gray-700 dark:text-white hover:bg-gray-200 focus:ring-4 focus:outline-none focus:ring-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-800"
-													type="button"
-													>CCR\
-												</button>
-												<input
-													bind:value={intelAccount}
-													type="text"
-													class="flex w-full p-2 leading-6 text-sm font-extrabold placeholder-[#1662c7] bg-white shadow border-2 border-[#1662c7] border-l-0"
-													autocomplete="username"
-													placeholder={$i18n.t('Account')}
-													required
-													on:input={removeCCRPrefix}
-												/>
-											</div>
-										</div>
-										<!-- <div class="mb-2">
-											<div class=" text-sm font-medium text-left mb-1">{$i18n.t('Email')}</div>
-											<input
-												bind:value={email}
-												type="email"
-												class="my-0.5 w-full text-sm outline-none bg-transparent"
-												autocomplete="email"
-												name="email"
-												placeholder={$i18n.t('Enter Your Email')}
-												required
-											/>
-										</div> -->
-									{/if}
-
-									<div>
-										<div class="block mb-1  text-left">{$i18n.t('Password')}</div>
-
-										<input
-											bind:value={password}
-											type="password"
-											class="inline-block w-full p-2 leading-6 text-sm font-extrabold placeholder-[#1662c7] bg-white shadow border-2 border-[#1662c7]"
-											placeholder={$i18n.t('Enter Your Password')}
-											autocomplete="current-password"
-											name="current-password"
-											required
-										/>
-									</div>
-								</div>
-							{/if}
-							<div class="mt-5">
-								{#if $config?.features.enable_login_form || $config?.features.enable_ldap}
-									{#if mode === 'ldap'}
-										<button
-											class="bg-gray-700/5 hover:bg-gray-700/10 dark:bg-gray-100/5 dark:hover:bg-gray-100/10 dark:text-gray-300 dark:hover:text-white transition w-full rounded-full font-medium text-sm py-1"
-											type="submit"
-										>
-											{$i18n.t('Authenticate')}
-										</button>
-									{:else}
-										<button
-											class="
-												focus:ring-4 focus:ring-[#2557D6]/50 inline-block w-full py-2 px-6 mb-2 text-center text-md leading-6 text-white font-extrabold bg-[#1662c7] hover:bg-[#1662c7]/90 bblock mb-2  text-leftder-3 border-[#1662c7] shadow transition duration-200"
-											type="submit"
-										>
-											{mode === 'signin'
-												? $i18n.t('Sign in')
-												: ($config?.onboarding ?? false)
-													? $i18n.t('Create Admin Account')
-													: $i18n.t('Create Account')}
-										</button>
-										{#if $config?.features.enable_signup && !($config?.onboarding ?? false)}
-											<div class=" mt-4 text-sm text-center">
-												{mode === 'signin'
-													? $i18n.t("Don't have an account?")
-													: $i18n.t('Already have an account?')}
-
-												<button
-													class=" font-medium underline"
-													type="button"
-													on:click={() => {
-														if (mode === 'signin') {
-															mode = 'signup';
-														} else {
-															mode = 'signin';
-														}
-													}}
-												>
-													{mode === 'signin' ? $i18n.t('Sign up') : $i18n.t('Sign in')}
-												</button>
-											</div>
-										{/if}
-									{/if}
-								{/if}
-							</div>
-						</form>
-						<div class="inline-flex items-center justify-center w-full">
-							<hr class="w-32 h-px  border-0 dark:bg-gray-100/10 bg-gray-700/10" />
-								<span class="px-3 text-sm font-medium text-gray-900 dark:text-white bg-transparent"
-									>{$i18n.t('or')}</span
-								>
-
-							<hr class="w-32 h-px  border-0 dark:bg-gray-100/10 bg-gray-700/10" />
-						</div>
-
-						<p class="mt-2 text-center text-sm leading-5 text-blue-500 max-w">
+						<p class="mt-4 text-center text-sm leading-5 text-blue-500 max-w">
 							<a
 								href="#"
 								on:click={stayLogout}
