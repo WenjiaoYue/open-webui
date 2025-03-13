@@ -65,6 +65,7 @@ from open_webui.utils.misc import (
     get_last_user_message,
     get_last_assistant_message,
     prepend_to_first_user_message_content,
+    convert_logit_bias_input_to_json,
 )
 from open_webui.utils.tools import get_tools
 from open_webui.utils.plugin import load_function_module_by_id
@@ -626,11 +627,18 @@ def apply_params_to_form_data(form_data, model):
 
         if "reasoning_effort" in params:
             form_data["reasoning_effort"] = params["reasoning_effort"]
+        if "logit_bias" in params:
+            try:
+                form_data["logit_bias"] = json.loads(
+                    convert_logit_bias_input_to_json(params["logit_bias"])
+                )
+            except Exception as e:
+                print(f"Error parsing logit_bias: {e}")
 
     return form_data
 
 
-async def process_chat_payload(request, form_data, metadata, user, model):
+async def process_chat_payload(request, form_data, user, metadata, model):
 
     form_data = apply_params_to_form_data(form_data, model)
     log.debug(f"form_data: {form_data}")
@@ -714,6 +722,30 @@ async def process_chat_payload(request, form_data, metadata, user, model):
         form_data["files"] = files
 
     variables = form_data.pop("variables", None)
+
+    # Process the form_data through the pipeline
+    try:
+        form_data = await process_pipeline_inlet_filter(
+            request, form_data, user, models
+        )
+    except Exception as e:
+        raise e
+
+    try:
+        filter_functions = [
+            Functions.get_function_by_id(filter_id)
+            for filter_id in get_sorted_filter_ids(model)
+        ]
+
+        form_data, flags = await process_filter_functions(
+            request=request,
+            filter_functions=filter_functions,
+            filter_type="inlet",
+            form_data=form_data,
+            extra_params=extra_params,
+        )
+    except Exception as e:
+        raise Exception(f"Error: {e}")
 
     features = form_data.pop("features", None)
     if features:
@@ -866,7 +898,7 @@ async def process_chat_payload(request, form_data, metadata, user, model):
 
 
 async def process_chat_response(
-    request, response, form_data, user, events, metadata, tasks
+    request, response, form_data, user, metadata, model, events, tasks
 ):
     async def background_tasks_handler():
         message_map = Chats.get_messages_by_chat_id(metadata["chat_id"])
@@ -1058,6 +1090,26 @@ async def process_chat_response(
         for content_type in ["text/event-stream", "application/x-ndjson"]
     ):
         return response
+
+    extra_params = {
+        "__event_emitter__": event_emitter,
+        "__event_call__": event_caller,
+        "__user__": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "role": user.role,
+        },
+        "__metadata__": metadata,
+        "__request__": request,
+        "__model__": model,
+    }
+    filter_functions = [
+        Functions.get_function_by_id(filter_id)
+        for filter_id in get_sorted_filter_ids(model)
+    ]
+
+    print(f"{filter_functions=}")
 
     # Streaming response
     if event_emitter and event_caller:
@@ -1400,19 +1452,38 @@ async def process_chat_response(
                         try:
                             data = json.loads(data)
 
-                            if "selected_model_id" in data:
-                                model_id = data["selected_model_id"]
-                                Chats.upsert_message_to_chat_by_id_and_message_id(
-                                    metadata["chat_id"],
-                                    metadata["message_id"],
-                                    {
-                                        "selectedModelId": model_id,
-                                    },
-                                )
-                            else:
-                                choices = data.get("choices", [])
-                                if not choices:
-                                    continue
+                            data, _ = await process_filter_functions(
+                                request=request,
+                                filter_functions=filter_functions,
+                                filter_type="stream",
+                                form_data=data,
+                                extra_params=extra_params,
+                            )
+
+                            if data:
+                                if "selected_model_id" in data:
+                                    model_id = data["selected_model_id"]
+                                    Chats.upsert_message_to_chat_by_id_and_message_id(
+                                        metadata["chat_id"],
+                                        metadata["message_id"],
+                                        {
+                                            "selectedModelId": model_id,
+                                        },
+                                    )
+                                else:
+                                    choices = data.get("choices", [])
+                                    if not choices:
+                                        usage = data.get("usage", {})
+                                        if usage:
+                                            await event_emitter(
+                                                {
+                                                    "type": "chat:completion",
+                                                    "data": {
+                                                        "usage": usage,
+                                                    },
+                                                }
+                                            )
+                                        continue
 
                                 delta = choices[0].get("delta", {})
                                 delta_tool_calls = delta.get("tool_calls", None)
@@ -1451,16 +1522,66 @@ async def process_chat_response(
 
                                 value = delta.get("content")
 
-                                if value:
-                                    content = f"{content}{value}"
-
-                                    if not content_blocks:
-                                        content_blocks.append(
-                                            {
-                                                "type": "text",
+                                    reasoning_content = delta.get("reasoning_content")
+                                    if reasoning_content:
+                                        if (
+                                            not content_blocks
+                                            or content_blocks[-1]["type"] != "reasoning"
+                                        ):
+                                            reasoning_block = {
+                                                "type": "reasoning",
+                                                "start_tag": "think",
+                                                "end_tag": "/think",
+                                                "attributes": {
+                                                    "type": "reasoning_content"
+                                                },
                                                 "content": "",
+                                                "started_at": time.time(),
                                             }
-                                        )
+                                            content_blocks.append(reasoning_block)
+                                        else:
+                                            reasoning_block = content_blocks[-1]
+
+                                        reasoning_block["content"] += reasoning_content
+
+                                        data = {
+                                            "content": serialize_content_blocks(
+                                                content_blocks
+                                            )
+                                        }
+
+                                    if value:
+                                        if (
+                                            content_blocks
+                                            and content_blocks[-1]["type"]
+                                            == "reasoning"
+                                            and content_blocks[-1]
+                                            .get("attributes", {})
+                                            .get("type")
+                                            == "reasoning_content"
+                                        ):
+                                            reasoning_block = content_blocks[-1]
+                                            reasoning_block["ended_at"] = time.time()
+                                            reasoning_block["duration"] = int(
+                                                reasoning_block["ended_at"]
+                                                - reasoning_block["started_at"]
+                                            )
+
+                                            content_blocks.append(
+                                                {
+                                                    "type": "text",
+                                                    "content": "",
+                                                }
+                                            )
+
+                                        content = f"{content}{value}"
+                                        if not content_blocks:
+                                            content_blocks.append(
+                                                {
+                                                    "type": "text",
+                                                    "content": "",
+                                                }
+                                            )
 
                                     content_blocks[-1]["content"] = (
                                         content_blocks[-1]["content"] + value
@@ -1922,10 +2043,28 @@ async def process_chat_response(
                 return f"data: {item}\n\n"
 
             for event in events:
-                yield wrap_item(json.dumps(event))
+                event, _ = await process_filter_functions(
+                    request=request,
+                    filter_functions=filter_functions,
+                    filter_type="stream",
+                    form_data=event,
+                    extra_params=extra_params,
+                )
+
+                if event:
+                    yield wrap_item(json.dumps(event))
 
             async for data in original_generator:
-                yield data
+                data, _ = await process_filter_functions(
+                    request=request,
+                    filter_functions=filter_functions,
+                    filter_type="stream",
+                    form_data=data,
+                    extra_params=extra_params,
+                )
+
+                if data:
+                    yield data
 
         return StreamingResponse(
             stream_wrapper(response.body_iterator, events),
