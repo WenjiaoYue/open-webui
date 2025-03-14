@@ -305,10 +305,6 @@ async def chat_web_search_handler(
     #         user,
     #     )
 
-    #     logging.info(
-    #     f"generate_queries 1  {time.time()}"
-    #     )
-    #     print(f'generate_queries 1  {time.time()}')
     #     response = res["choices"][0]["message"]["content"]
 
     #     try:
@@ -347,7 +343,6 @@ async def chat_web_search_handler(
 
     # searchQuery = queries[0]
     # FIXME should be the last user_message!!
-    print("user_message: >>>", user_message)
     searchQuery = user_message
 
     await event_emitter(
@@ -382,8 +377,11 @@ async def chat_web_search_handler(
                     user,
                 ),
             )
+        print('3.14 ThreadPoolExecutor', time.time())
 
         if results:
+            print('3.14 files start', time.time())
+
             await event_emitter(
                 {
                     "type": "status",
@@ -407,6 +405,7 @@ async def chat_web_search_handler(
                 }
             )
             form_data["files"] = files
+
         else:
             await event_emitter(
                 {
@@ -420,6 +419,7 @@ async def chat_web_search_handler(
                     },
                 }
             )
+
         logging.info(
         f"loop end  {time.time()}"
         )  

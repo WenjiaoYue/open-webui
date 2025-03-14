@@ -1411,7 +1411,7 @@ def search_web(request: Request, engine: str, query: str) -> list[SearchResult]:
 
 
 @router.post("/process/web/search")
-async def process_web_search(
+def process_web_search(
     request: Request, form_data: SearchForm, user=Depends(get_verified_user)
 ):
     try:
@@ -1419,12 +1419,10 @@ async def process_web_search(
             f"trying to web search with {request.app.state.config.RAG_WEB_SEARCH_ENGINE, form_data.query}"
         )
         print(f'trying to web search with {request.app.state.config.RAG_WEB_SEARCH_ENGINE, form_data.query}')
-        begin = time.time()
         web_results = search_web(
             request, request.app.state.config.RAG_WEB_SEARCH_ENGINE, form_data.query
         )
-        end = time.time()
-        print(f'web search time {begin} - {end}')
+
     except Exception as e:
         log.exception(e)
 
@@ -1435,6 +1433,7 @@ async def process_web_search(
 
     log.debug(f"web_results: {web_results}")
     print(f"web_results: {web_results}")
+    print(f'web_results start  {time.time()}"')
 
     try:
         collection_name = form_data.collection_name
@@ -1450,10 +1449,10 @@ async def process_web_search(
             requests_per_second=request.app.state.config.RAG_WEB_SEARCH_CONCURRENT_REQUESTS,
             trust_env=True # FIXME pass by env https://github.com/open-webui/open-webui/pull/9989/files#diff-65faf260bc7bceb8e36a6178928cc13d2934be3d4c842a8593dc379e929cd6ee
         )
-        print('loader end---',  time.time())
-        docs = loader.aload()
-        print('docs end---', time.time())
+        print('get_web_loader end', time.time())
 
+        docs = loader.aload()
+        print(f'docs start  {time.time()}"')
         if request.app.state.config.BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL:
             return {
                 "status": True,
@@ -1469,7 +1468,7 @@ async def process_web_search(
                 "loaded_count": len(docs),
             }
         else:
-            await run_in_threadpool(
+            run_in_threadpool(
                 save_docs_to_vector_db,
                 request,
                 docs,
@@ -1484,12 +1483,15 @@ async def process_web_search(
                 "filenames": urls,
                 "loaded_count": len(docs),
             }
+        
+
     except Exception as e:
         log.exception(e)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ERROR_MESSAGES.DEFAULT(e),
         )
+
 
 
 class QueryDocForm(BaseModel):

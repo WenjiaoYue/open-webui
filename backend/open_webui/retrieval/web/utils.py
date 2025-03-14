@@ -402,7 +402,8 @@ class SafeWebBaseLoader(WebBaseLoader):
         """
         super().__init__(*args, **kwargs)
         self.trust_env = trust_env
-
+        self.requests_per_second=10
+        
     async def _fetch(
         self, url: str, retries: int = 3, cooldown: int = 2, backoff: float = 1.5
     ) -> str:
@@ -494,11 +495,9 @@ def get_web_loader(
     trust_env: bool = True,
 ):
     # Check if the URLs are valid
-    print('safe_validate_urls start---',  time.time())
     # FIXME ban validate url for now
     # safe_urls = safe_validate_urls([urls] if isinstance(urls, str) else urls)
     safe_urls = urls
-    print('safe_validate_urls end---',  time.time())
 
     return SafeWebBaseLoader(
         web_path=safe_urls,
