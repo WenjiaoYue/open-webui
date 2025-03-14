@@ -394,12 +394,11 @@ class SafePlaywrightURLLoader(PlaywrightURLLoader):
 
 class SafeWebBaseLoader(WebBaseLoader):
     """WebBaseLoader with enhanced error handling for URLs."""
-
-    def __init__(self, trust_env: bool = False, *args, **kwargs):
+    def __init__(self, trust_env: bool = True, *args, **kwargs):
         """Initialize SafeWebBaseLoader
         Args:
             trust_env (bool, optional): set to True if using proxy to make web requests, for example
-                using http(s)_proxy environment variables. Defaults to False.
+                using http(s)_proxy environment variables. Defaults to True.
         """
         super().__init__(*args, **kwargs)
         self.trust_env = trust_env
