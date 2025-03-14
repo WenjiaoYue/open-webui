@@ -4,11 +4,10 @@ import json
 import logging
 from pathlib import Path
 from typing import Literal, Optional, overload
-import os
+
 import aiohttp
 from aiocache import cached
 import requests
-import time
 
 
 from fastapi import Depends, FastAPI, HTTPException, Request, APIRouter
@@ -27,6 +26,7 @@ from open_webui.env import (
     ENABLE_FORWARD_USER_INFO_HEADERS,
     BYPASS_MODEL_ACCESS_CONTROL,
 )
+from open_webui.models.users import UserModel
 
 from open_webui.constants import ERROR_MESSAGES
 from open_webui.env import ENV, SRC_LOG_LEVELS
@@ -43,7 +43,7 @@ from open_webui.utils.access_control import has_access
 
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["OPENAI"])
-conversation_counter = 1
+
 
 ##########################################
 #
@@ -57,7 +57,20 @@ async def send_get_request(url, key=None, user: UserModel = None):
     try:
         async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as session:
             async with session.get(
-                url, headers={**({"Authorization": f"Bearer {key}"} if key else {})}
+                url,
+                headers={
+                    **({"Authorization": f"Bearer {key}"} if key else {}),
+                    **(
+                        {
+                            "X-OpenWebUI-User-Name": user.name,
+                            "X-OpenWebUI-User-Id": user.id,
+                            "X-OpenWebUI-User-Email": user.email,
+                            "X-OpenWebUI-User-Role": user.role,
+                        }
+                        if ENABLE_FORWARD_USER_INFO_HEADERS and user
+                        else {}
+                    ),
+                },
             ) as response:
                 return await response.json()
     except Exception as e:
@@ -85,9 +98,15 @@ def openai_o1_o3_handler(payload):
         payload["max_completion_tokens"] = payload["max_tokens"]
         del payload["max_tokens"]
 
-    # Fix: O1 does not support the "system" parameter, Modify "system" to "user"
+    # Fix: o1 and o3 do not support the "system" role directly.
+    # For older models like "o1-mini" or "o1-preview", use role "user".
+    # For newer o1/o3 models, replace "system" with "developer".
     if payload["messages"][0]["role"] == "system":
-        payload["messages"][0]["role"] = "user"
+        model_lower = payload["model"].lower()
+        if model_lower.startswith("o1-mini") or model_lower.startswith("o1-preview"):
+            payload["messages"][0]["role"] = "user"
+        else:
+            payload["messages"][0]["role"] = "developer"
 
     return payload
 
@@ -195,7 +214,7 @@ async def speech(request: Request, user=Depends(get_verified_user)):
                     **(
                         {
                             "HTTP-Referer": "https://openwebui.com/",
-                            "X-Title": "DCAI小智",
+                            "X-Title": "Open WebUI",
                         }
                         if "openrouter.ai" in url
                         else {}
@@ -241,14 +260,14 @@ async def speech(request: Request, user=Depends(get_verified_user)):
 
             raise HTTPException(
                 status_code=r.status_code if r else 500,
-                detail=detail if detail else "DCAI小智: Server Connection Error",
+                detail=detail if detail else "Open WebUI: Server Connection Error",
             )
 
     except ValueError:
         raise HTTPException(status_code=401, detail=ERROR_MESSAGES.OPENAI_NOT_FOUND)
 
 
-async def get_all_models_responses(request: Request) -> list:
+async def get_all_models_responses(request: Request, user: UserModel) -> list:
     if not request.app.state.config.ENABLE_OPENAI_API:
         return []
 
@@ -272,7 +291,9 @@ async def get_all_models_responses(request: Request) -> list:
         ):
             request_tasks.append(
                 send_get_request(
-                    f"{url}/models", request.app.state.config.OPENAI_API_KEYS[idx]
+                    f"{url}/models",
+                    request.app.state.config.OPENAI_API_KEYS[idx],
+                    user=user,
                 )
             )
         else:
@@ -292,6 +313,7 @@ async def get_all_models_responses(request: Request) -> list:
                         send_get_request(
                             f"{url}/models",
                             request.app.state.config.OPENAI_API_KEYS[idx],
+                            user=user,
                         )
                     )
                 else:
@@ -353,13 +375,13 @@ async def get_filtered_models(models, user):
 
 
 @cached(ttl=3)
-async def get_all_models(request: Request) -> dict[str, list]:
+async def get_all_models(request: Request, user: UserModel) -> dict[str, list]:
     log.info("get_all_models()")
 
     if not request.app.state.config.ENABLE_OPENAI_API:
         return {"data": []}
 
-    responses = await get_all_models_responses(request)
+    responses = await get_all_models_responses(request, user=user)
 
     def extract_data(response):
         if response and "data" in response:
@@ -419,7 +441,7 @@ async def get_models(
     }
 
     if url_idx is None:
-        models = await get_all_models(request)
+        models = await get_all_models(request, user=user)
     else:
         url = request.app.state.config.OPENAI_API_BASE_URLS[url_idx]
         key = request.app.state.config.OPENAI_API_KEYS[url_idx]
@@ -480,7 +502,7 @@ async def get_models(
                 # ClientError covers all aiohttp requests issues
                 log.exception(f"Client error: {str(e)}")
                 raise HTTPException(
-                    status_code=500, detail="DCAI小智: Server Connection Error"
+                    status_code=500, detail="Open WebUI: Server Connection Error"
                 )
             except Exception as e:
                 log.exception(f"Unexpected error: {e}")
@@ -514,6 +536,16 @@ async def verify_connection(
                 headers={
                     "Authorization": f"Bearer {key}",
                     "Content-Type": "application/json",
+                    **(
+                        {
+                            "X-OpenWebUI-User-Name": user.name,
+                            "X-OpenWebUI-User-Id": user.id,
+                            "X-OpenWebUI-User-Email": user.email,
+                            "X-OpenWebUI-User-Role": user.role,
+                        }
+                        if ENABLE_FORWARD_USER_INFO_HEADERS
+                        else {}
+                    ),
                 },
             ) as r:
                 if r.status != 200:
@@ -531,51 +563,13 @@ async def verify_connection(
             # ClientError covers all aiohttp requests issues
             log.exception(f"Client error: {str(e)}")
             raise HTTPException(
-                status_code=500, detail="DCAI小智: Server Connection Error"
+                status_code=500, detail="Open WebUI: Server Connection Error"
             )
         except Exception as e:
             log.exception(f"Unexpected error: {e}")
             error_detail = f"Unexpected error: {str(e)}"
             raise HTTPException(status_code=500, detail=error_detail)
 
-def printLog(log_type, *args, **kwargs):
-    """
-    :param log_type: 'Request' or 'Response'，
-    """
-    global conversation_counter
-
-    def decode_unicode(arg):
-        if isinstance(arg, str):
-            try:
-                return arg.encode('utf-8').decode('unicode_escape')
-            except (UnicodeDecodeError, UnicodeEncodeError):
-                return arg
-        return arg
-
-    timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-    
-    if log_type == "Request":
-        args = tuple(decode_unicode(arg) for arg in args)
-        print('conversation_counter', conversation_counter)
-        if conversation_counter == 1:  # First call, start of conversation
-            header = "\n=== New Conversation Start ===\n"
-            conversation_counter += 1  # Move to next stage
-        else:  # Second call, end of conversation
-            header = "\n=== Conversation Completed  ===\n"
-            conversation_counter = 1  # Reset counter for the next conversation
-    else:
-        header = ""
-
-    log_output = (
-        f"{header}"
-        f"\n========== {log_type} Log ==========\n"
-        f"[{timestamp}] {log_type}:\n"
-        f"{' '.join(map(str, args))}\n"
-        f"=================================\n"
-    )
-
-    with open('output.log', 'a', encoding='utf-8', errors='replace') as file:
-        file.write(log_output + "\n")
 
 @router.post("/chat/completions")
 async def generate_chat_completion(
@@ -595,7 +589,6 @@ async def generate_chat_completion(
     model_id = form_data.get("model")
     model_info = Models.get_model_by_id(model_id)
 
-    print('payload', payload)
     # Check model info and override the payload
     if model_info:
         if model_info.base_model_id:
@@ -604,9 +597,7 @@ async def generate_chat_completion(
 
         params = model_info.params.model_dump()
         payload = apply_model_params_to_body_openai(params, payload)
-        print('apply_model_params_to_body_openai', payload)
         payload = apply_model_system_prompt_to_body(params, payload, metadata, user)
-        print('apply_model_system_prompt_to_body', payload)
 
         # Check if user has access to the model
         if not bypass_filter and user.role == "user":
@@ -627,7 +618,7 @@ async def generate_chat_completion(
                 detail="Model not found",
             )
 
-    await get_all_models(request)
+    await get_all_models(request, user=user)
     model = request.app.state.OPENAI_MODELS.get(model_id)
     if model:
         idx = model["urlIdx"]
@@ -676,8 +667,6 @@ async def generate_chat_completion(
 
     # Convert the modified body back to JSON
     payload = json.dumps(payload)
-    print('payload -- send to backend finally', payload)
-    printLog("Request", payload)
 
     r = None
     session = None
@@ -689,10 +678,6 @@ async def generate_chat_completion(
             trust_env=True, timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT)
         )
 
-        # ------request image ----
-        
-        # ------------------------
-
         r = await session.request(
             method="POST",
             url=f"{url}/chat/completions",
@@ -703,7 +688,7 @@ async def generate_chat_completion(
                 **(
                     {
                         "HTTP-Referer": "https://openwebui.com/",
-                        "X-Title": "DCAI小智",
+                        "X-Title": "Open WebUI",
                     }
                     if "openrouter.ai" in url
                     else {}
@@ -721,37 +706,11 @@ async def generate_chat_completion(
             },
         )
 
-       
         # Check if response is SSE
         if "text/event-stream" in r.headers.get("Content-Type", ""):
             streaming = True
-            async def content_generator():
-                async for chunk in r.content.iter_any():
-                    try:
-                        decoded_chunk = chunk.decode('ISO-8859-1').encode('utf-8').decode('utf-8')
-                        json_strings = decoded_chunk.replace('data: ', '').strip()
-                        for json_string in json_strings.split("\n"): 
-                            if json_string:
-                                try:
-                                    # Check if the chunk is a valid JSON object
-                                    json_data = json.loads(json_string)
-                                    content = json_data['choices'][0]['delta']['content']
-                                    content = content.encode('ISO-8859-1').decode('utf-8', errors='replace')
-                                    json_data['choices'][0]['delta']['content'] = content
-                                    json_data_str = json.dumps(json_data, ensure_ascii=False)
-                                    print('json_data_str', json_data_str, json_data)
-                                    printLog("Response", json_data_str)
-                                except json.JSONDecodeError as e:
-                                    printLog("Response", f"JSON decode error: {e}")
-                        else:
-                            print("Skipped non-data chunk:", decoded_chunk) 
-                    except Exception as e:
-                        printLog("Response", f"error: {e}")
-                    yield chunk
-
-
             return StreamingResponse(
-                content_generator(), 
+                r.content,
                 status_code=r.status,
                 headers=dict(r.headers),
                 background=BackgroundTask(
@@ -779,7 +738,7 @@ async def generate_chat_completion(
 
         raise HTTPException(
             status_code=r.status if r else 500,
-            detail=detail if detail else "DCAI小智: Server Connection Error",
+            detail=detail if detail else "Open WebUI: Server Connection Error",
         )
     finally:
         if not streaming and session:
@@ -849,14 +808,14 @@ async def proxy(path: str, request: Request, user=Depends(get_verified_user)):
         if r is not None:
             try:
                 res = await r.json()
-                print(res)
+                log.error(res)
                 if "error" in res:
                     detail = f"External: {res['error']['message'] if 'message' in res['error'] else res['error']}"
             except Exception:
                 detail = f"External: {e}"
         raise HTTPException(
             status_code=r.status if r else 500,
-            detail=detail if detail else "DCAI小智: Server Connection Error",
+            detail=detail if detail else "Open WebUI: Server Connection Error",
         )
     finally:
         if not streaming and session:
