@@ -259,9 +259,19 @@ async def chat_completion_tools_handler(
     return body, {"sources": sources}
 
 
+
 async def chat_web_search_handler(
     request: Request, form_data: dict, extra_params: dict, user
-):
+):  
+    # FIXME
+    req_dict = await request.json()
+    ori_prompt = req_dict["messages"][0]["content"]
+    print("ori_prompt", ori_prompt, req_dict, form_data)
+    # print('request', request.json().messages[0].content, request.json()['messages'][0], form_data)
+    logging.info(
+        f"chat_web_search_handler  {time.time()}"
+    )
+    print(f'chat_web_search_handler  {time.time()}')
     event_emitter = extra_params["__event_emitter__"]
     await event_emitter(
         {
@@ -274,143 +284,155 @@ async def chat_web_search_handler(
         }
     )
 
+    logging.info(
+        f"event_emitter  {time.time()}"
+        )
+    print(f'event_emitter  {time.time()}')    
     messages = form_data["messages"]
     user_message = get_last_user_message(messages)
 
-    queries = []
-    try:
-        res = await generate_queries(
-            request,
-            {
-                "model": form_data["model"],
-                "messages": messages,
-                "prompt": user_message,
-                "type": "web_search",
+    # queries = []
+    # try:
+
+    #     res = await generate_queries(
+    #         request,
+    #         {
+    #             "model": form_data["model"],
+    #             "messages": messages,
+    #             "prompt": user_message,
+    #             "type": "web_search",
+    #         },
+    #         user,
+    #     )
+
+    #     logging.info(
+    #     f"generate_queries 1  {time.time()}"
+    #     )
+    #     print(f'generate_queries 1  {time.time()}')
+    #     response = res["choices"][0]["message"]["content"]
+
+    #     try:
+    #         bracket_start = response.find("{")
+    #         bracket_end = response.rfind("}") + 1
+
+    #         if bracket_start == -1 or bracket_end == -1:
+    #             raise Exception("No JSON object found in the response")
+
+    #         response = response[bracket_start:bracket_end]
+    #         queries = json.loads(response)
+    #         queries = queries.get("queries", [])
+    #     except Exception as e:
+    #         queries = [response]
+
+    # except Exception as e:
+    #     log.exception(e)
+    #     queries = [user_message]
+
+    # logging.info(
+    #     f"queries  {queries}"
+    #     )
+    # print(f'queries  {queries}')
+    # if len(queries) == 0:
+    #     await event_emitter(
+    #         {
+    #             "type": "status",
+    #             "data": {
+    #                 "action": "web_search",
+    #                 "description": "No search query generated",
+    #                 "done": True,
+    #             },
+    #         }
+    #     )
+    #     return form_data
+
+    # searchQuery = queries[0]
+    # FIXME should be the last user_message!!
+    print("user_message: >>>", user_message)
+    searchQuery = user_message
+
+    await event_emitter(
+        {
+            "type": "status",
+            "data": {
+                "action": "web_search",
+                "description": 'Searching "{{searchQuery}}"',
+                "query": searchQuery,
+                "done": False,
             },
-            user,
+        }
+    )
+
+    try:
+        logging.info(
+        f"loop start  {time.time()}"
         )
-
-        response = res["choices"][0]["message"]["content"]
-
-        try:
-            bracket_start = response.find("{")
-            bracket_end = response.rfind("}") + 1
-
-            if bracket_start == -1 or bracket_end == -1:
-                raise Exception("No JSON object found in the response")
-
-            response = response[bracket_start:bracket_end]
-            queries = json.loads(response)
-            queries = queries.get("queries", [])
-        except Exception as e:
-            queries = [response]
-
-    except Exception as e:
-        log.exception(e)
-        queries = [user_message]
-
-    if len(queries) == 0:
-        await event_emitter(
-            {
-                "type": "status",
-                "data": {
-                    "action": "web_search",
-                    "description": "No search query generated",
-                    "done": True,
-                },
-            }
-        )
-        return form_data
-
-    all_results = []
-
-    for searchQuery in queries:
-        await event_emitter(
-            {
-                "type": "status",
-                "data": {
-                    "action": "web_search",
-                    "description": 'Searching "{{searchQuery}}"',
-                    "query": searchQuery,
-                    "done": False,
-                },
-            }
-        )
-
-        try:
-            results = await process_web_search(
-                request,
-                SearchForm(
-                    **{
-                        "query": searchQuery,
-                    }
+        print(f'loop start  {time.time()}"')
+        # Offload process_web_search to a separate thread
+        loop = asyncio.get_running_loop()
+        with ThreadPoolExecutor() as executor:
+            results = await loop.run_in_executor(
+                executor,
+                lambda: process_web_search(
+                    request,
+                    SearchForm(
+                        **{
+                            "query": searchQuery,
+                        }
+                    ),
+                    user,
                 ),
-                user=user,
             )
 
-            if results:
-                all_results.append(results)
-                files = form_data.get("files", [])
-
-                if results.get("collection_name"):
-                    files.append(
-                        {
-                            "collection_name": results["collection_name"],
-                            "name": searchQuery,
-                            "type": "web_search",
-                            "urls": results["filenames"],
-                        }
-                    )
-                elif results.get("docs"):
-                    files.append(
-                        {
-                            "docs": results.get("docs", []),
-                            "name": searchQuery,
-                            "type": "web_search",
-                            "urls": results["filenames"],
-                        }
-                    )
-
-                form_data["files"] = files
-        except Exception as e:
-            log.exception(e)
+        if results:
             await event_emitter(
                 {
                     "type": "status",
                     "data": {
                         "action": "web_search",
-                        "description": 'Error searching "{{searchQuery}}"',
+                        "description": "Searched {{count}} sites",
+                        "query": searchQuery,
+                        "urls": results["filenames"],
+                        "done": True,
+                    },
+                }
+            )
+
+            files = form_data.get("files", [])
+            files.append(
+                {
+                    "collection_name": results["collection_name"],
+                    "name": searchQuery,
+                    "type": "web_search_results",
+                    "urls": results["filenames"],
+                }
+            )
+            form_data["files"] = files
+        else:
+            await event_emitter(
+                {
+                    "type": "status",
+                    "data": {
+                        "action": "web_search",
+                        "description": "No search results found",
                         "query": searchQuery,
                         "done": True,
                         "error": True,
                     },
                 }
             )
-
-    if all_results:
-        urls = []
-        for results in all_results:
-            if "filenames" in results:
-                urls.extend(results["filenames"])
-
+        logging.info(
+        f"loop end  {time.time()}"
+        )  
+        print(f'loop end  {time.time()}')          
+    except Exception as e:
+        log.exception(e)
         await event_emitter(
             {
                 "type": "status",
                 "data": {
                     "action": "web_search",
-                    "description": "Searched {{count}} sites",
-                    "urls": urls,
-                    "done": True,
-                },
-            }
-        )
-    else:
-        await event_emitter(
-            {
-                "type": "status",
-                "data": {
-                    "action": "web_search",
-                    "description": "No search results found",
+                    "description": 'Error searching "{{searchQuery}}"',
+                    "query": searchQuery,
                     "done": True,
                     "error": True,
                 },
@@ -418,7 +440,6 @@ async def chat_web_search_handler(
         )
 
     return form_data
-
 
 async def chat_image_generation_handler(
     request: Request, form_data: dict, extra_params: dict, user

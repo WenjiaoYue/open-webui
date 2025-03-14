@@ -408,7 +408,7 @@ class SafeWebBaseLoader(WebBaseLoader):
         self, url: str, retries: int = 3, cooldown: int = 2, backoff: float = 1.5
     ) -> str:
         async with aiohttp.ClientSession(trust_env=self.trust_env) as session:
-            for i in range(retries):
+            for i in range(1):    # FIXME reties force to 1
                 try:
                     kwargs: Dict = dict(
                         headers=self.session.headers,
@@ -418,7 +418,7 @@ class SafeWebBaseLoader(WebBaseLoader):
                         kwargs["ssl"] = False
 
                     async with session.get(
-                        url, **(self.requests_kwargs | kwargs)
+                        url, timeout=aiohttp.ClientTimeout(total=5), **(self.requests_kwargs | kwargs) # FIXME client timeout force to 5
                     ) as response:
                         if self.raise_for_status:
                             response.raise_for_status()
@@ -467,33 +467,20 @@ class SafeWebBaseLoader(WebBaseLoader):
                 text = soup.get_text(**self.bs_get_text_kwargs)
 
                 # Build metadata
-                metadata = extract_metadata(soup, path)
+                metadata = {"source": path}
+                if title := soup.find("title"):
+                    metadata["title"] = title.get_text()
+                if description := soup.find("meta", attrs={"name": "description"}):
+                    metadata["description"] = description.get(
+                        "content", "No description found."
+                    )
+                if html := soup.find("html"):
+                    metadata["language"] = html.get("lang", "No language found.")
 
                 yield Document(page_content=text, metadata=metadata)
             except Exception as e:
                 # Log the error and continue with the next URL
-                log.exception(e, "Error loading %s", path)
-
-    async def alazy_load(self) -> AsyncIterator[Document]:
-        """Async lazy load text from the url(s) in web_path."""
-        results = await self.ascrape_all(self.web_paths)
-        for path, soup in zip(self.web_paths, results):
-            text = soup.get_text(**self.bs_get_text_kwargs)
-            metadata = {"source": path}
-            if title := soup.find("title"):
-                metadata["title"] = title.get_text()
-            if description := soup.find("meta", attrs={"name": "description"}):
-                metadata["description"] = description.get(
-                    "content", "No description found."
-                )
-            if html := soup.find("html"):
-                metadata["language"] = html.get("lang", "No language found.")
-            yield Document(page_content=text, metadata=metadata)
-
-    async def aload(self) -> list[Document]:
-        """Load data into Document objects."""
-        return [document async for document in self.alazy_load()]
-
+                log.error(f"Error loading {path}: {e}")
 
 RAG_WEB_LOADER_ENGINES = defaultdict(lambda: SafeWebBaseLoader)
 RAG_WEB_LOADER_ENGINES["playwright"] = SafePlaywrightURLLoader
@@ -503,36 +490,21 @@ RAG_WEB_LOADER_ENGINES["firecrawl"] = SafeFireCrawlLoader
 
 def get_web_loader(
     urls: Union[str, Sequence[str]],
-    verify_ssl: bool = True,
+    verify_ssl: bool = False,
     requests_per_second: int = 2,
-    trust_env: bool = False,
+    trust_env: bool = True,
 ):
     # Check if the URLs are valid
-    safe_urls = safe_validate_urls([urls] if isinstance(urls, str) else urls)
+    print('safe_validate_urls start---',  time.time())
+    # FIXME ban validate url for now
+    # safe_urls = safe_validate_urls([urls] if isinstance(urls, str) else urls)
+    safe_urls = urls
+    print('safe_validate_urls end---',  time.time())
 
-    web_loader_args = {
-        "web_paths": safe_urls,
-        "verify_ssl": verify_ssl,
-        "requests_per_second": requests_per_second,
-        "continue_on_failure": True,
-        "trust_env": trust_env,
-    }
-
-    if PLAYWRIGHT_WS_URI.value:
-        web_loader_args["playwright_ws_url"] = PLAYWRIGHT_WS_URI.value
-
-    if RAG_WEB_LOADER_ENGINE.value == "firecrawl":
-        web_loader_args["api_key"] = FIRECRAWL_API_KEY.value
-        web_loader_args["api_url"] = FIRECRAWL_API_BASE_URL.value
-
-    # Create the appropriate WebLoader based on the configuration
-    WebLoaderClass = RAG_WEB_LOADER_ENGINES[RAG_WEB_LOADER_ENGINE.value]
-    web_loader = WebLoaderClass(**web_loader_args)
-
-    log.debug(
-        "Using RAG_WEB_LOADER_ENGINE %s for %s URLs",
-        web_loader.__class__.__name__,
-        len(safe_urls),
+    return SafeWebBaseLoader(
+        web_path=safe_urls,
+        verify_ssl=verify_ssl,
+        requests_per_second=requests_per_second,
+        continue_on_failure=True,
+        trust_env=trust_env,
     )
-
-    return web_loader
