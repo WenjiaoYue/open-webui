@@ -67,7 +67,6 @@ def search_google_pse(
     all_results = []
     start_index = 1  # Google PSE start parameter is 1-based
 
-    """
     while count > 0:
         num_results_this_page = min(count, 10)  # Google PSE max results per page is 10
         params = {
@@ -90,10 +89,9 @@ def search_google_pse(
             start_index += 10  # Increment start index for the next page
         else:
             break  # No more results from Google PSE, break the loop
-    """
 
-    """Concurrent request get"""
-    all_results = asyncio.run(search_google_concurrently(query, search_engine_id, api_key, count, url, headers))
+    # """Concurrent request get"""
+    # all_results = asyncio.run(search_google_concurrently(query, search_engine_id, api_key, count, url, headers))
         
     if filter_list:
         all_results = get_filtered_results(all_results, filter_list)

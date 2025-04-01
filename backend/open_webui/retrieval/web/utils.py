@@ -482,6 +482,27 @@ class SafeWebBaseLoader(WebBaseLoader):
                 # Log the error and continue with the next URL
                 log.error(f"Error loading {path}: {e}")
 
+
+    async def alazy_load(self) -> AsyncIterator[Document]:
+         """Async lazy load text from the url(s) in web_path."""
+         results = await self.ascrape_all(self.web_paths)
+         for path, soup in zip(self.web_paths, results):
+             text = soup.get_text(**self.bs_get_text_kwargs)
+             metadata = {"source": path}
+             if title := soup.find("title"):
+                 metadata["title"] = title.get_text()
+             if description := soup.find("meta", attrs={"name": "description"}):
+                 metadata["description"] = description.get(
+                     "content", "No description found."
+                 )
+             if html := soup.find("html"):
+                 metadata["language"] = html.get("lang", "No language found.")
+             yield Document(page_content=text, metadata=metadata)
+
+    async def aload(self) -> list[Document]:
+        """Load data into Document objects."""
+        return [document async for document in self.alazy_load()]
+
 RAG_WEB_LOADER_ENGINES = defaultdict(lambda: SafeWebBaseLoader)
 RAG_WEB_LOADER_ENGINES["playwright"] = SafePlaywrightURLLoader
 RAG_WEB_LOADER_ENGINES["safe_web"] = SafeWebBaseLoader

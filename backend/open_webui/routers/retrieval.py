@@ -1411,14 +1411,13 @@ def search_web(request: Request, engine: str, query: str) -> list[SearchResult]:
 
 
 @router.post("/process/web/search")
-def process_web_search(
+async def process_web_search(
     request: Request, form_data: SearchForm, user=Depends(get_verified_user)
 ):
     try:
         logging.info(
             f"trying to web search with {request.app.state.config.RAG_WEB_SEARCH_ENGINE, form_data.query}"
         )
-        print(f'trying to web search with {request.app.state.config.RAG_WEB_SEARCH_ENGINE, form_data.query}')
         web_results = search_web(
             request, request.app.state.config.RAG_WEB_SEARCH_ENGINE, form_data.query
         )
@@ -1432,8 +1431,6 @@ def process_web_search(
         )
 
     log.debug(f"web_results: {web_results}")
-    print(f"web_results: {web_results}")
-    print(f'web_results start  {time.time()}"')
 
     try:
         collection_name = form_data.collection_name
@@ -1449,11 +1446,9 @@ def process_web_search(
             requests_per_second=request.app.state.config.RAG_WEB_SEARCH_CONCURRENT_REQUESTS,
             trust_env=True # FIXME pass by env https://github.com/open-webui/open-webui/pull/9989/files#diff-65faf260bc7bceb8e36a6178928cc13d2934be3d4c842a8593dc379e929cd6ee
         )
-        print('get_web_loader end', time.time())
 
-        docs = loader.aload()
-        print(f'docs start  {time.time()}"')
-        if request.app.state.config.BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL:
+        docs = await loader.aload()
+        if False: #request.app.state.config.BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL:
             return {
                 "status": True,
                 "collection_name": None,
@@ -1468,7 +1463,7 @@ def process_web_search(
                 "loaded_count": len(docs),
             }
         else:
-            run_in_threadpool(
+            await run_in_threadpool(
                 save_docs_to_vector_db,
                 request,
                 docs,
