@@ -30,7 +30,6 @@ WORKDIR /root/open-webui
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 RUN git checkout wenjiao/DCAI_Web_search 
-RUN npm install onnxruntime-node --onnxruntime-node-install-cuda=skip --verbose
 
 WORKDIR /root/open-webui/backend
 RUN pip install -r requirements.txt -U
