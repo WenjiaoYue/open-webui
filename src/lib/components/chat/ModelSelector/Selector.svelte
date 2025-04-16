@@ -19,7 +19,9 @@
 		mobile,
 		temporaryChatEnabled,
 		settings,
-		config
+		config,
+		USAGE_POOL
+
 	} from '$lib/stores';
 	import { toast } from 'svelte-sonner';
 	import { capitalizeFirstLetter, sanitizeResponseContent, splitStream } from '$lib/utils';
@@ -513,6 +515,10 @@
 										{/each}
 									</div>
 								{/if}
+								
+								<!-- {#if Object.keys($USAGE_POOL?.[item.label] || {}).length > 0 } -->
+									<div class="text-xs font-bold bg-green-500/20 text-green-700 dark:text-green-200 w-fit px-2 rounded uppercase line-clamp-1 mr-0.5">{Object.keys($USAGE_POOL?.[item.label] || {}).length} 人使用中</div>
+								<!-- {/if} -->
 							</div>
 						</div>
 

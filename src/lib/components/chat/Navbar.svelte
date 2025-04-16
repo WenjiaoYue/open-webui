@@ -42,6 +42,16 @@
 
 	let showShareChatModal = false;
 	let showDownloadChatModal = false;
+
+	let modelMapLinks = {
+		"emr./models/DeepSeek-R1-Channel-INT8": "",
+		"gnr./models/DeepSeek-R1-Channel-INT8": "",
+		"deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": "",
+		"deepseek-ai/DeepSeek-R1-Distill-Qwen-32B": "",
+		"/data/models/DeepSeek-R1-Channel-INT8": "http://10.165.58.224:3000/d/sglang-dashboard/sglang?orgId=1&refresh=5s&var-instance=eeiy820gtdjb4a&var-model_name=",
+		"/models/qwq-32b-q8_0-00001-of-00009.gguf": "http://10.165.58.224:3000/d/cee0geqo7uigwc/llamacpp?orgId=1",
+	};
+
 </script>
 
 <ShareChatModal bind:show={showShareChatModal} chatId={$chatId} />
@@ -83,12 +93,10 @@
 					<ModelSelector bind:selectedModels showSetDefault={!shareEnabled} />
 				{/if}
 			</div>
-
-			
 			<div class="self-start flex flex-none items-center text-gray-600 dark:text-gray-400">
 				<!-- <div class="md:hidden flex self-center w-[1px] h-5 mx-2 bg-gray-300 dark:bg-stone-700" /> -->
 				<Tooltip content={$i18n.t('Grafana')}>
-					<a href="http://10.165.58.224:3000/?orgId=1" 
+					<a href={modelMapLinks[selectedModels] || "#"}
 					aria-label="Grafana" target="_blank" rel="noopener noreferrer"
 					class=" flex cursor-pointer px-2 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-850 transition"
 					>

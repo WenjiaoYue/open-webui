@@ -35,7 +35,8 @@
 		showOverview,
 		chatTitle,
 		showArtifacts,
-		tools
+		tools,
+		USAGE_POOL
 	} from '$lib/stores';
 	import {
 		convertMessagesToHistory,
@@ -1203,11 +1204,24 @@
 				chatId,
 				message.model,
 				message.id,
-				createMessagesList(history, message.id)
+				createMessagesList(history, message.id),
 			);
 		}
 
-		console.log(data);
+		if (data.done) {
+			// delete chat
+			$socket?.emit('usage', {
+				action: 'del',
+				model: message.modelName,
+				chat_id: chatId
+			});
+
+			$socket?.on('usage', (data) => {
+				console.log('usage del', data);
+				USAGE_POOL.set(data);
+			});
+		}
+
 		if (autoScroll) {
 			scrollToBottom();
 		}
@@ -1299,8 +1313,6 @@
 			timestamp: Math.floor(Date.now() / 1000), // Unix epoch
 			models: selectedModels
 		};
-		console.log('userMessage -- print format', userMessage);
-		
 
 		// Add message to history and Set currentId to messageId
 		history.messages[userMessageId] = userMessage;
@@ -1387,7 +1399,6 @@
 
 		await Promise.all(
 			selectedModelIds.map(async (modelId, _modelIdx) => {
-				console.log('modelId', modelId);
 				const model = $models.filter((m) => m.id === modelId).at(0);
 
 				if (model) {
@@ -1433,7 +1444,18 @@
 					}
 					responseMessage.userContext = userContext;
 
-					const chatEventEmitter = await getChatEventEmitter(model.id, _chatId);
+					$socket?.emit('usage', {
+						action: 'chat',
+						model: model.name,
+						chat_id: _chatId
+					});
+
+					$socket?.on('usage', (data) => {
+						console.log('usage', data);
+						USAGE_POOL.set(data);
+					});
+
+					const chatEventEmitter = await getChatEventEmitter(model.name, _chatId);
 
 					scrollToBottom();
 					await sendPromptSocket(_history, model, responseMessageId, _chatId);
@@ -1857,7 +1879,7 @@
 	<title>
 		{$chatTitle
 			? `${$chatTitle.length > 30 ? `${$chatTitle.slice(0, 30)}...` : $chatTitle} | ${$i18n.t(`${$WEBUI_NAME}`)}`
-			: `${$i18n.t(`${$WEBUI_NAME}`)}`   }
+			: `${$i18n.t(`${$WEBUI_NAME}`)}`}
 	</title>
 </svelte:head>
 
