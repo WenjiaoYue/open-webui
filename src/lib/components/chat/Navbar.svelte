@@ -44,11 +44,11 @@
 	let showDownloadChatModal = false;
 
 	let modelMapLinks = {
-		"emr./models/DeepSeek-R1-Channel-INT8": "",
-		"gnr./models/DeepSeek-R1-Channel-INT8": "",
+		"emr./models/DeepSeek-R1-Channel-INT8": "http://10.165.58.224:3000/d/sglang-dashboard-0416/sglang?orgId=1&refresh=5s&var-instance=beiy85ifk1hq8d&var-model_name=%2Fmodels%2FDeepSeek-R1-Channel-INT8",
+		"gnr./models/DeepSeek-R1-Channel-INT8": "http://10.165.58.224:3000/d/sglang-dashboard-0416/sglang?orgId=1&refresh=5s&var-instance=eeiy820gtdjb4a&var-model_name=%2Fmodels%2FDeepSeek-R1-Channel-INT8",
 		"deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": "",
 		"deepseek-ai/DeepSeek-R1-Distill-Qwen-32B": "",
-		"/data/models/DeepSeek-R1-Channel-INT8": "http://10.165.58.224:3000/d/sglang-dashboard/sglang?orgId=1&refresh=5s&var-instance=eeiy820gtdjb4a&var-model_name=",
+		"/data/DeepSeek-R1-BF16-w8afp8-static-no-ste-G2": "http://10.165.58.224:3000/d/b281712d-8bff-41ef-9f3f-71ad43c05e9fxd/vllm?orgId=1&var-DS_PROMETHEUS=default&var-model_name=",
 		"/models/qwq-32b-q8_0-00001-of-00009.gguf": "http://10.165.58.224:3000/d/cee0geqo7uigwc/llamacpp?orgId=1",
 	};
 

@@ -49,7 +49,7 @@ else:
 
 
 # Timeout duration in seconds
-TIMEOUT_DURATION = 60
+TIMEOUT_DURATION = 600
 
 # Dictionary to maintain the user pool
 
@@ -107,6 +107,7 @@ async def periodic_usage_pool_cleanup():
                 send_usage = True
 
             if send_usage:
+                print('USAGE_POOL', USAGE_POOL)
                 # Emit updated usage information after cleaning
                 await sio.emit("usage", USAGE_POOL)
 
@@ -142,13 +143,8 @@ async def usage(sid, data):
 
     if action == "del":
         if chat_id in USAGE_POOL[model_id]:
-            sorted_chats = sorted(
-                USAGE_POOL[model_id].items(),
-                key=lambda item: item[1]["updated_at"]
-            )
-            oldest_chat_id = sorted_chats[0][0]
-            del USAGE_POOL[model_id][oldest_chat_id]
-            print(f"Deleted oldest chat_id '{oldest_chat_id}' from model '{model_id}'")
+            del USAGE_POOL[model_id][chat_id]
+            print(f"Deleted oldest chat_id '{chat_id}' from model '{model_id}'")
     else:
         # Store the new usage data and task
         USAGE_POOL[model_id][chat_id] = {"updated_at": current_time}
@@ -176,7 +172,7 @@ async def connect(sid, environ, auth):
 
             # print(f"user {user.name}({user.id}) connected with session ID {sid}")
             await sio.emit("user-list", {"user_ids": list(USER_POOL.keys())})
-            await sio.emit("usage", {"models": get_models_in_use()})
+            await sio.emit("usage", USER_POOL)
 
 
 @sio.on("user-join")
