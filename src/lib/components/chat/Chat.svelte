@@ -1471,7 +1471,7 @@
 		chats.set(await getChatList(localStorage.token, $currentChatPage));
 	};
 
-	const sendPromptSocket = async (_history, model, responseMessageId, _chatId) => {
+	const sendPromptSocket = async (_history, model, responseMessageId, _chatId) => {		
 		const responseMessage = _history.messages[responseMessageId];
 		const userMessage = _history.messages[responseMessage.parentId];
 
@@ -1629,7 +1629,18 @@
 					: {})
 			},
 			`${WEBUI_BASE_URL}/api`
-		).catch((error) => {
+		).catch((error) => {			
+			// delete chat
+			$socket?.emit('usage', {
+				action: 'del',
+				model: model.name,
+				chat_id: $chatId
+			});
+
+			$socket?.on('usage', (data) => {
+				console.log('usage del', data);
+				USAGE_POOL.set(data);
+			});
 			toast.error(`${error}`);
 
 			responseMessage.error = {
@@ -1653,6 +1664,7 @@
 	};
 
 	const handleOpenAIError = async (error, responseMessage) => {
+		
 		let errorMessage = '';
 		let innerError;
 
