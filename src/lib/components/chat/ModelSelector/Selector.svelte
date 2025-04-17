@@ -279,8 +279,8 @@
 		>
 			{#if selectedModel}
 				{selectedModel.label} 									
-				<span class="flex items-center justify-center text-xs font-bold bg-green-500/20 text-green-700 dark:text-green-200 w-fit px-2 rounded uppercase line-clamp-1 mr-0.5">
-					{ Object.keys($USAGE_POOL?.[selectedModel.label] || {}).length } { $i18n.t('active') }
+				<span class="flex items-center justify-center text-xs font-bold bg-green-500/20 text-green-700 dark:text-green-200 w-fit px-2 rounded line-clamp-1 mr-0.5">
+					{ Object.keys($USAGE_POOL?.[selectedModel.label] || {}).length } { $i18n.t('Active Requests') }
 				  </span>
 			{:else}
 				{placeholder}
@@ -520,7 +520,7 @@
 								{/if}
 								
 								<!-- {#if Object.keys($USAGE_POOL?.[item.label] || {}).length > 0 } -->
-									<div class="text-xs font-bold bg-green-500/20 text-green-700 dark:text-green-200 w-fit px-2 rounded uppercase line-clamp-1 mr-0.5">{Object.keys($USAGE_POOL?.[item.label] || {}).length} {$i18n.t('active')}</div>
+									<div class="text-xs font-bold bg-green-500/20 text-green-700 dark:text-green-200 w-fit px-2 rounded line-clamp-1 mr-0.5">{Object.keys($USAGE_POOL?.[item.label] || {}).length} {$i18n.t('Active Requests')}</div>
 								<!-- {/if} -->
 							</div>
 						</div>

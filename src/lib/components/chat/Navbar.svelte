@@ -54,7 +54,7 @@
 		'deepseek-ai/DeepSeek-R1-Distill-Qwen-14B': '',
 		'deepseek-ai/DeepSeek-R1-Distill-Qwen-32B': '',
 		'/data/DeepSeek-R1-BF16-w8afp8-static-no-ste-G2':
-			'http://10.165.58.224:3000/d/b281712d-8bff-41ef-9f3f-71ad43c05e9fxd/vllm?orgId=1&var-DS_PROMETHEUS=default&var-model_name=',
+			'http://10.165.58.224:3000/d/b281712d-8bff-41ef-9f3f-71ad43c05e9fxd/vllm?orgId=1&var-DS_PROMETHEUS=default&var-model_name=%2Fdata%2FDeepSeek-R1-BF16-w8afp8-static-no-ste-G2',
 		'/models/qwq-32b-q8_0-00001-of-00009.gguf':
 			'http://10.165.58.224:3000/d/cee0geqo7uigwc/llamacpp?orgId=1'
 	};
@@ -110,20 +110,21 @@
 			<div class="self-start flex flex-none items-start text-gray-600 dark:text-gray-400">
 				<!-- <div class="md:hidden flex self-center w-[1px] h-5 mx-2 bg-gray-300 dark:bg-stone-700" /> -->
 				<Tooltip content={$i18n.t('Grafana')}>
-					<a
-						href={modelMapLinks[selectedModels] || '#'}
-						aria-label="Grafana"
-						target="_blank"
-						rel="noopener noreferrer"
-						class="flex cursor-pointer px-2 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-850 transition relative flex items-center justify-center cursor-pointer px-2 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-850 transition"
-					>
-						<div class=" flex flex-col items-center gap-1">
-							<PerfMonitor className="size-5" strokeWidth="2" />
-							<p class="absolute text-[0.6rem] text-center -bottom-2">Grafana</p>
-						</div>
-					</a>
+					<button class="rounded-full border border-slate-300 py-2 px-4 text-center text-sm transition-all shadow-sm hover:shadow-lg text-slate-600 hover:text-white hover:bg-slate-800 hover:border-slate-800 focus:text-white focus:bg-slate-800 focus:border-slate-800 active:border-slate-800 active:text-white active:bg-slate-800 disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none">
+						<a
+						  href={modelMapLinks[selectedModels] || '#'}
+						  aria-label="Grafana"
+						  target="_blank"
+						  rel="noopener noreferrer"
+						  class="flex flex-row items-center gap-2"
+						>
+						  <PerfMonitor className="size-5" strokeWidth="2" />
+						  <span>Grafana</span>
+						</a>
+					  </button>
+					  
 				</Tooltip>
-				<Tooltip content={$i18n.t('Lang')}>
+				<Tooltip content={$i18n.t('Switch Language')}>
 					<button
 						class="
 						flex cursor-pointer px-2 py-1 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-850 transition
