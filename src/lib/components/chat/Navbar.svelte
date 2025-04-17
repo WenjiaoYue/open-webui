@@ -118,7 +118,7 @@
 						class="flex cursor-pointer px-2 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-850 transition relative flex items-center justify-center cursor-pointer px-2 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-850 transition"
 					>
 						<div class=" flex flex-col items-center gap-1">
-							<!-- <PerfMonitor className="size-5" strokeWidth="2" /> -->
+							<PerfMonitor className="size-5" strokeWidth="2" />
 							<p class="absolute text-[0.6rem] text-center -bottom-2">Grafana</p>
 						</div>
 					</a>
