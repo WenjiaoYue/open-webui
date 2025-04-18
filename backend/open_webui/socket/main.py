@@ -107,7 +107,7 @@ async def periodic_usage_pool_cleanup():
                 send_usage = True
 
             if send_usage:
-                print('USAGE_POOL', USAGE_POOL)
+                print('USAGE_POOL --- 1', USAGE_POOL)
                 # Emit updated usage information after cleaning
                 await sio.emit("usage", USAGE_POOL)
 
@@ -149,7 +149,7 @@ async def usage(sid, data):
         # Store the new usage data and task
         USAGE_POOL[model_id][chat_id] = {"updated_at": current_time}
 
-    print('USAGE_POOL', USAGE_POOL)
+    print('USAGE_POOL ----2', USAGE_POOL)
     # Broadcast the usage data to all clients
     await sio.emit("usage", USAGE_POOL)
 
@@ -172,7 +172,7 @@ async def connect(sid, environ, auth):
 
             # print(f"user {user.name}({user.id}) connected with session ID {sid}")
             await sio.emit("user-list", {"user_ids": list(USER_POOL.keys())})
-            await sio.emit("usage", USER_POOL)
+            await sio.emit("usage", USAGE_POOL)
 
 
 @sio.on("user-join")
