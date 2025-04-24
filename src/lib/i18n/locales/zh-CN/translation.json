@@ -1166,6 +1166,9 @@
 	"What are 5 warning signs to watch out for during an interview? For each, give examples and suggest what they might reveal about a job. Then help me understand how I can prepare better to spot these red flags.": "面试过程中有哪些警示信号需要注意？列出5个警示信号，并提供每个信号的例子，解释它们可能揭示的工作信息。然后帮助我理解如何更好地准备，以识别这些警示信号。",
 
 	"Active Requests": "个活跃请求",
-	"Lang": "切换语言"
+	"Lang": "切换语言",
+	"NOTE": "注意",
+	"The backend will record all user's queries for debug purpose. ": "系统会记录所有用户的查询，以便用于调试。",
+	"please don't enter the sensitive or personal info during query.":"请勿输入个人隐私或敏感信息。"
 
 }
