@@ -235,6 +235,7 @@ def query_collection(
     embedding_function,
     k: int,
 ) -> dict:
+    print('query_collection', k)
     results = []
     for query in queries:
         query_embedding = embedding_function(query)
