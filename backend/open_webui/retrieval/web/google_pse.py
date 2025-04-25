@@ -80,6 +80,7 @@ def search_google_pse(
         response = requests.request("GET", url, headers=headers, params=params)
         response.raise_for_status()
         json_response = response.json()
+        print('json_response', json_response)
         results = json_response.get("items", [])
         if results:  # check if results are returned. If not, no more pages to fetch.
             all_results.extend(results)

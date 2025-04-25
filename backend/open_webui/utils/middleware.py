@@ -319,6 +319,7 @@ async def chat_web_search_handler(
             ),
             user=user,
         )
+        print(f'process_web_search', results)
 
         if results:
 

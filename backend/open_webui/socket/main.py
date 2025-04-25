@@ -130,7 +130,6 @@ def get_models_in_use():
 
 @sio.on("usage")
 async def usage(sid, data):
-    print('sid, data', sid, data, data["action"])
     model_id = data["model"]
     chat_id = data["chat_id"]
     action = data["action"]
@@ -149,7 +148,6 @@ async def usage(sid, data):
         # Store the new usage data and task
         USAGE_POOL[model_id][chat_id] = {"updated_at": current_time}
 
-    print('USAGE_POOL ----2', USAGE_POOL)
     # Broadcast the usage data to all clients
     await sio.emit("usage", USAGE_POOL)
 
