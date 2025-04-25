@@ -1609,7 +1609,7 @@ BYPASS_EMBEDDING_AND_RETRIEVAL = PersistentConfig(
 
 
 RAG_TOP_K = PersistentConfig(
-    "RAG_TOP_K", "rag.top_k", int(os.environ.get("RAG_TOP_K", "3"))
+    "RAG_TOP_K", "rag.top_k", int(os.environ.get("RAG_TOP_K", "10"))
 )
 RAG_RELEVANCE_THRESHOLD = PersistentConfig(
     "RAG_RELEVANCE_THRESHOLD",
