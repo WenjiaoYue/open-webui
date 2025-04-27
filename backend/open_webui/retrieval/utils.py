@@ -235,6 +235,7 @@ def query_collection(
     embedding_function,
     k: int,
 ) -> dict:
+    print('query_collection', k)
     results = []
     for query in queries:
         query_embedding = embedding_function(query)
@@ -269,6 +270,7 @@ def query_collection_with_hybrid_search(
     reranking_function,
     r: float,
 ) -> dict:
+    print('query_collection hybrid', k)
     results = []
     error = False
     for collection_name in collection_names:

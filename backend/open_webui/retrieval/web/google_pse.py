@@ -1,12 +1,44 @@
 import logging
 from typing import Optional
-
 import requests
 from open_webui.retrieval.web.main import SearchResult, get_filtered_results
 from open_webui.env import SRC_LOG_LEVELS
 
+import asyncio, aiohttp
+
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["RAG"])
+
+async def fetch_page(session, url, params):
+    async with session.get(url, params=params) as response:
+        response.raise_for_status()
+        return await response.json()
+
+async def search_google_concurrently(query, search_engine_id, api_key, count, url, headers):
+    all_results = []
+    tasks = []
+    
+    async with aiohttp.ClientSession(trust_env=True, headers=headers) as session:
+        for start_index in range(1, count + 1, 10):
+            num_results_this_page = min(count, 10)
+            params = {
+                "cx": search_engine_id,
+                "q": query,
+                "key": api_key,
+                "num": num_results_this_page,
+                "start": start_index,
+                "sort": "date"
+            }
+            tasks.append(fetch_page(session, url, params))
+        
+        responses = await asyncio.gather(*tasks)
+        
+        for json_response in responses:
+            results = json_response.get("items", [])
+            if results:
+                all_results.extend(results)
+    
+    return all_results
 
 
 def search_google_pse(
@@ -29,6 +61,7 @@ def search_google_pse(
     Returns:
         list[SearchResult]: A list of SearchResult objects.
     """
+
     url = "https://www.googleapis.com/customsearch/v1"
     headers = {"Content-Type": "application/json"}
     all_results = []
@@ -42,10 +75,12 @@ def search_google_pse(
             "key": api_key,
             "num": num_results_this_page,
             "start": start_index,
+            "sort": "date"
         }
         response = requests.request("GET", url, headers=headers, params=params)
         response.raise_for_status()
         json_response = response.json()
+        print('json_response', json_response)
         results = json_response.get("items", [])
         if results:  # check if results are returned. If not, no more pages to fetch.
             all_results.extend(results)
@@ -56,6 +91,9 @@ def search_google_pse(
         else:
             break  # No more results from Google PSE, break the loop
 
+    # """Concurrent request get"""
+    # all_results = asyncio.run(search_google_concurrently(query, search_engine_id, api_key, count, url, headers))
+        
     if filter_list:
         all_results = get_filtered_results(all_results, filter_list)
 

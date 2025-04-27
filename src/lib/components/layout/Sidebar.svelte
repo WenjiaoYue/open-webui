@@ -20,7 +20,10 @@
 		channels,
 		socket,
 		config,
-		isApp
+		isApp,
+
+		showWarning
+
 	} from '$lib/stores';
 	import { onMount, getContext, tick, onDestroy } from 'svelte';
 
@@ -515,6 +518,7 @@
 						if ($mobile) {
 							showSidebar.set(false);
 						}
+						showWarning.set(true)
 					}, 0);
 				}}
 			>
