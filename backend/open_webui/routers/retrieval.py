@@ -1552,6 +1552,7 @@ def query_collection_handler(
     user=Depends(get_verified_user),
 ):
     try:
+        print('form_data', form_data)
         if request.app.state.config.ENABLE_RAG_HYBRID_SEARCH:
             return query_collection_with_hybrid_search(
                 collection_names=form_data.collection_names,
