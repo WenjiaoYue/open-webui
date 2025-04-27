@@ -367,6 +367,7 @@ async def chat_web_search_handler(
         print(f'loop end  {time.time()} {form_data}')          
     except Exception as e:
         log.exception(e)
+        print('Error searching', e)        
         await event_emitter(
             {
                 "type": "status",
