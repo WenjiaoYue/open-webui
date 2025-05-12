@@ -188,6 +188,8 @@ async def generate_chat_completion(
 
     model = models[model_id]
 
+    print(f"Check model access begin: {time.time()}")
+
     if getattr(request.state, "direct", False):
         return await generate_direct_chat_completion(
             request, form_data, user=user, models=models
@@ -272,6 +274,7 @@ async def generate_chat_completion(
             else:
                 return convert_response_ollama_to_openai(response)
         else:
+            print(f"Check model access end: {time.time()}")
             return await generate_openai_chat_completion(
                 request=request,
                 form_data=form_data,

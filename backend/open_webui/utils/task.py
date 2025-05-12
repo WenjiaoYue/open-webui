@@ -149,6 +149,15 @@ def replace_messages_variable(
 
 
 def rag_template(template: str, context: str, query: str):
+
+    # Get the current date
+    current_date = datetime.now()
+
+    # Format the date to YYYY-MM-DD
+    formatted_date = current_date.strftime("%Y-%m-%d")
+
+    template = template.replace("{{CURRENT_DATE}}", formatted_date)
+
     if template.strip() == "":
         template = DEFAULT_RAG_TEMPLATE
 

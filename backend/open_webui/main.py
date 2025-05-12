@@ -993,6 +993,7 @@ async def chat_completion(
     tasks = form_data.pop("background_tasks", None)
 
     try:
+        print("*****************1")
         if not model_item.get("direct", False):
             model_id = form_data.get("model", None)
             if model_id not in request.app.state.MODELS:
@@ -1039,10 +1040,11 @@ async def chat_completion(
 
         request.state.metadata = metadata
         form_data["metadata"] = metadata
-
+        print("*****************2")
         form_data, metadata, events = await process_chat_payload(
             request, form_data, user, metadata, model
         )
+        print("*****************3")
 
     except Exception as e:
         log.debug(f"Error processing chat payload: {e}")

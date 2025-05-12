@@ -462,6 +462,15 @@ async def generate_queries(
         raise e
 
     try:
+        # FIXME sihan here we hardcode access to task model
+        print("*****")
+        print(request)
+        print(payload)
+        print(user)
+        print("*****")
+        print(request.app.state.config.OPENAI_API_BASE_URLS)
+        print(request.json())
+        payload['model'] = 'Qwen/Qwen2.5-7B-Instruct'
         return await generate_chat_completion(request, form_data=payload, user=user)
     except Exception as e:
         return JSONResponse(

@@ -4,6 +4,7 @@ import json
 import logging
 from pathlib import Path
 from typing import Literal, Optional, overload
+import time
 
 import aiohttp
 from aiocache import cached
@@ -665,6 +666,8 @@ async def generate_chat_completion(
     if "max_tokens" in payload and "max_completion_tokens" in payload:
         del payload["max_tokens"]
 
+    print("payload: ===")
+    print(payload["messages"][0]["content"])
     # Convert the modified body back to JSON
     payload = json.dumps(payload)
 
@@ -674,6 +677,7 @@ async def generate_chat_completion(
     response = None
 
     try:
+        print("openai session post: ", time.time())
         session = aiohttp.ClientSession(
             trust_env=True, timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT)
         )

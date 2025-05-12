@@ -1746,6 +1746,7 @@ Respond to the user query using the provided context, incorporating inline citat
 - **Only include inline citations using [source_id] (e.g., [1], [2]) when a `<source_id>` tag is explicitly provided in the context.**
 - Do not cite if the <source_id> tag is not provided in the context.  
 - Do not use XML tags in your response.
+- Today's date is: {{CURRENT_DATE}}.
 - Ensure citations are concise and directly related to the information provided.
 
 ### Example of Citation:

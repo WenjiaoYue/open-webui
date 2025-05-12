@@ -2,7 +2,7 @@ import logging
 import os
 import uuid
 from typing import Optional, Union
-
+import time
 import asyncio
 import requests
 import hashlib
@@ -236,6 +236,10 @@ def query_collection(
     k: int,
 ) -> dict:
     print('query_collection', k)
+    print('len(collection_names)', len(collection_names))
+    print('len(queries)', len(queries))
+    print('queries', queries)
+    print("query_collection start: ", time.time())
     results = []
     for query in queries:
         query_embedding = embedding_function(query)
@@ -253,11 +257,14 @@ def query_collection(
                     log.exception(f"Error when querying the collection: {e}")
             else:
                 pass
+    print("query_collection finish embdding: ", time.time())
 
     if VECTOR_DB == "chroma":
         # Chroma uses unconventional cosine similarity, so we don't need to reverse the results
         # https://docs.trychroma.com/docs/collections/configure#configuring-chroma-collections
-        return merge_and_sort_query_results(results, k=k, reverse=False)
+        res = merge_and_sort_query_results(results, k=k, reverse=False)
+        print("query_collection finish chroma merge_and_sort_query_results: ", time.time())
+        return res
     else:
         return merge_and_sort_query_results(results, k=k, reverse=True)
 
@@ -472,12 +479,16 @@ def get_sources_from_files(
                                 )
 
                         if (not hybrid_search) or (context is None):
+                            print("KKKKKKK", k)
+                            # FIXME sihan increase the k to be len(queries) * 10
+                            k=20
                             context = query_collection(
                                 collection_names=collection_names,
                                 queries=queries,
                                 embedding_function=embedding_function,
                                 k=k,
                             )
+                            print(context)
                 except Exception as e:
                     log.exception(e)
 
@@ -506,6 +517,7 @@ def get_sources_from_files(
         except Exception as e:
             log.exception(e)
 
+    print("sourrces: ", sources)
     return sources
 
 
