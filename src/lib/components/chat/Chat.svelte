@@ -181,7 +181,6 @@
 			return;
 		}
 		sessionStorage.selectedModels = JSON.stringify(selectedModels);
-		console.log('saveSessionSelectedModels', selectedModels, sessionStorage.selectedModels);
 	};
 
 	$: if (selectedModels) {
@@ -231,7 +230,6 @@
 	};
 
 	const chatEventHandler = async (event, cb) => {
-		console.log(event);
 
 		if (event.chat_id === $chatId) {
 			await tick();
@@ -1217,7 +1215,6 @@
 			});
 
 			$socket?.on('usage', (data) => {
-				console.log('usage del', data);
 				USAGE_POOL.set(data);
 			});
 		}
@@ -1451,7 +1448,6 @@
 					});
 
 					$socket?.on('usage', (data) => {
-						console.log('usage', data);
 						USAGE_POOL.set(data);
 					});
 
@@ -1638,7 +1634,6 @@
 			});
 
 			$socket?.on('usage', (data) => {
-				console.log('usage del', data);
 				USAGE_POOL.set(data);
 			});
 			toast.error(`${error}`);
