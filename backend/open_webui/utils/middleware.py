@@ -287,10 +287,67 @@ async def chat_web_search_handler(
         )
     print(f'event_emitter  {time.time()}')    
     messages = form_data["messages"]
+
     user_message = get_last_user_message(messages)
+
+    queries = []
+    # FIXME sihan: try to get google queries 1!
+    try:
+
+        res = await generate_queries(
+            request,
+            {
+                "model": form_data["model"],
+                "messages": messages,
+                "prompt": user_message,
+                "type": "web_search",
+            },
+            user,
+        )
+
+        response = res["choices"][0]["message"]["content"]
+
+        try:
+            bracket_start = response.find("{")
+            bracket_end = response.rfind("}") + 1
+
+            if bracket_start == -1 or bracket_end == -1:
+                raise Exception("No JSON object found in the response")
+
+            response = response[bracket_start:bracket_end]
+            queries = json.loads(response)
+            queries = queries.get("queries", [])
+        except Exception as e:
+            queries = [response]
+
+    except Exception as e:
+        log.exception(e)
+        # FIXME sihan: if error, fallback the last user message
+        queries = [user_message]
+
+    logging.info(
+        f"queries  {queries}"
+        )
+    print(f'generate_queries 1 google queries {queries}')
+    if len(queries) == 0:
+        await event_emitter(
+            {
+                "type": "status",
+                "data": {
+                    "action": "web_search",
+                    "description": "No search query generated",
+                    "done": True,
+                },
+            }
+        )
+        return form_data
+
+    searchQuery = queries[0]
+
+
     # searchQuery = queries[0]
     # FIXME should be the last user_message!!
-    searchQuery = user_message
+    # searchQuery = user_message
 
     await event_emitter(
         {
@@ -308,7 +365,9 @@ async def chat_web_search_handler(
         logging.info(
         f"loop start  {time.time()}"
         )
-        print(f'loop start  {time.time()}"')
+        print(f'loop start  {time.time()}')
+        print(request)
+        print(searchQuery)
         # Offload process_web_search to a separate thread
         results = await process_web_search(
             request,
@@ -318,23 +377,25 @@ async def chat_web_search_handler(
                 }
             ),
             user=user,
+            event_emitter=event_emitter,
         )
         print(f'process_web_search', results)
+        print(results["filenames"],)
 
         if results:
 
-            await event_emitter(
-                {
-                    "type": "status",
-                    "data": {
-                        "action": "web_search",
-                        "description": "Searched {{count}} sites",
-                        "query": searchQuery,
-                        "urls": results["filenames"],
-                        "done": True,
-                    },
-                }
-            )
+            # await event_emitter(
+            #     {
+            #         "type": "status",
+            #         "data": {
+            #             "action": "web_search",
+            #             "description": "Searched {{count}} sites",
+            #             "query": searchQuery,
+            #             "urls": results["filenames"],
+            #             "done": True,
+            #         },
+            #     }
+            # )
 
             files = form_data.get("files", [])
             files.append(
@@ -484,37 +545,43 @@ async def chat_completion_files_handler(
 
     if files := body.get("metadata", {}).get("files", None):
         queries = []
-        try:
-            queries_response = await generate_queries(
-                request,
-                {
-                    "model": body["model"],
-                    "messages": body["messages"],
-                    "type": "retrieval",
-                },
-                user,
-            )
-            queries_response = queries_response["choices"][0]["message"]["content"]
+        # FIXME sihan: force to skip this generate query process to save time !!
+        # try:
+        #     queries_response = await generate_queries(
+        #         request,
+        #         {
+        #             "model": body["model"],
+        #             "messages": body["messages"],
+        #             "type": "retrieval",
+        #         },
+        #         user,
+        #     )
+        #     queries_response = queries_response["choices"][0]["message"]["content"]
 
-            try:
-                bracket_start = queries_response.find("{")
-                bracket_end = queries_response.rfind("}") + 1
+        #     try:
+        #         bracket_start = queries_response.find("{")
+        #         bracket_end = queries_response.rfind("}") + 1
 
-                if bracket_start == -1 or bracket_end == -1:
-                    raise Exception("No JSON object found in the response")
+        #         if bracket_start == -1 or bracket_end == -1:
+        #             raise Exception("No JSON object found in the response")
 
-                queries_response = queries_response[bracket_start:bracket_end]
-                queries_response = json.loads(queries_response)
-            except Exception as e:
-                queries_response = {"queries": [queries_response]}
+        #         queries_response = queries_response[bracket_start:bracket_end]
+        #         queries_response = json.loads(queries_response)
+        #     except Exception as e:
+        #         queries_response = {"queries": [queries_response]}
 
-            queries = queries_response.get("queries", [])
-        except:
-            pass
+        #     queries = queries_response.get("queries", [])
+        # except:
+        #     pass
+        # FIXME sihan: use directly the pre-generated queries!
+        print("++++")
+        print(body)
+        queries = [files[0]["name"]]
 
         if len(queries) == 0:
             queries = [get_last_user_message(body["messages"])]
 
+        print("generate_queries 2 google queries ",queries)
         try:
             # Offload get_sources_from_files to a separate thread
             loop = asyncio.get_running_loop()
@@ -539,6 +606,7 @@ async def chat_completion_files_handler(
             log.exception(e)
 
         log.debug(f"rag_contexts:sources: {sources}")
+        print(f"get sourec from file end: {time.time()}")
 
     return body, {"sources": sources}
 
@@ -769,6 +837,8 @@ async def process_chat_payload(request, form_data, user, metadata, model):
 
     except Exception as e:
         log.exception(e)
+    
+    print("$$$$$$$$$$$$$")
 
     # If context is not empty, insert it into the messages
     if len(sources) > 0:
@@ -826,7 +896,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                 },
             }
         )
-
+    print(f"process chat payload end: {time.time()}")
     return form_data, metadata, events
 
 

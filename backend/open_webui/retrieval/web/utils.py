@@ -402,7 +402,49 @@ class SafeWebBaseLoader(WebBaseLoader):
         """
         super().__init__(*args, **kwargs)
         self.trust_env = trust_env
-        self.requests_per_second=10
+        # self.requests_per_second=10
+        self.requests_per_second=50 # FIXME sihan: This is used for concurrent requests rate limit
+
+    async def fetch_all(self, urls: List[str]) -> Any:
+        """Fetch all urls concurrently with rate limiting."""
+        semaphore = asyncio.Semaphore(self.requests_per_second)
+        tasks = []
+        for url in urls:
+            task = asyncio.ensure_future(self._fetch_with_rate_limit(url, semaphore))
+            tasks.append(task)
+        try:
+            # if self.show_progress:
+            #     from tqdm.asyncio import tqdm_asyncio
+
+            #     return await tqdm_asyncio.gather(
+            #         *tasks, desc="Fetching pages", ascii=True, mininterval=1
+            #     )
+            # else:
+            return await asyncio.gather(*tasks)
+        except ImportError:
+            log.warn("For better logging of progress, `pip install tqdm`")
+            return await asyncio.gather(*tasks)
+
+    async def _fetch_with_rate_limit(
+        self, url: str, semaphore: asyncio.Semaphore
+    ) -> str:
+        print("---------", semaphore)
+        async with semaphore:
+            try:
+                return await self._fetch(url)
+            except Exception as e:
+                if self.continue_on_failure:
+                    log.warning(
+                        f"Error fetching {url}, skipping due to"
+                        f" continue_on_failure=True"
+                    )
+                    return ""
+                log.exception(
+                    f"Error fetching {url} and aborting, use continue_on_failure=True "
+                    "to continue loading urls after encountering an error."
+                )
+                raise e
+
         
     async def _fetch(
         self, url: str, retries: int = 3, cooldown: int = 2, backoff: float = 1.5
@@ -422,8 +464,10 @@ class SafeWebBaseLoader(WebBaseLoader):
                     ) as response:
                         if self.raise_for_status:
                             response.raise_for_status()
+                        print(f"Succeed fetching {url}")
                         return await response.text()
                 except aiohttp.ClientConnectionError as e:
+                    print("Error fetching ?????????", e)
                     if i == retries - 1:
                         raise
                     else:
@@ -432,6 +476,11 @@ class SafeWebBaseLoader(WebBaseLoader):
                             f"{i + 1}/{retries}: {e}. Retrying..."
                         )
                         await asyncio.sleep(cooldown * backoff**i)
+                except Exception as e:
+                    print("&&&&&&&&&&&&", type(e))
+                    if isinstance(e, TimeoutError):
+                        print(f"Detect a TimeoutError when fetch {url}, try to add timeout!!")
+                    raise
         raise ValueError("retry count exceeded")
 
     def _unpack_fetch_results(

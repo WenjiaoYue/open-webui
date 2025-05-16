@@ -472,6 +472,9 @@ def get_sources_from_files(
                                 )
 
                         if (not hybrid_search) or (context is None):
+
+                            # FIXME sihan increase the k to be len(queries) * 10
+                            k=20
                             context = query_collection(
                                 collection_names=collection_names,
                                 queries=queries,

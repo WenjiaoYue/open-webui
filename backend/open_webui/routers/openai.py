@@ -664,7 +664,8 @@ async def generate_chat_completion(
 
     if "max_tokens" in payload and "max_completion_tokens" in payload:
         del payload["max_tokens"]
-
+    print("payload: ===")
+    print(payload["messages"][0]["content"])
     # Convert the modified body back to JSON
     payload = json.dumps(payload)
 

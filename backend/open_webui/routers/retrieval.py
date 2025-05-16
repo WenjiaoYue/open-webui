@@ -1412,7 +1412,7 @@ def search_web(request: Request, engine: str, query: str) -> list[SearchResult]:
 
 @router.post("/process/web/search")
 async def process_web_search(
-    request: Request, form_data: SearchForm, user=Depends(get_verified_user)
+    request: Request, form_data: SearchForm, user=Depends(get_verified_user), event_emitter=None
 ):
     try:
         logging.info(
@@ -1432,6 +1432,7 @@ async def process_web_search(
 
     log.debug(f"web_results: {web_results}")
 
+
     try:
         collection_name = form_data.collection_name
         if collection_name == "" or collection_name is None:
@@ -1440,6 +1441,21 @@ async def process_web_search(
             ]
 
         urls = [result.link for result in web_results]
+
+        # FIXME sihan: pre pop the links
+        await event_emitter(
+            {
+                "type": "status",
+                "data": {
+                    "action": "web_search",
+                    "description": "Searched {{count}} sites",
+                    "query": form_data.query,
+                    "urls": urls,
+                    "done": True,
+                },
+            }
+        )
+
         loader = get_web_loader(
             urls,
             verify_ssl=False,

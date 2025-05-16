@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from typing import Optional
 import logging
 import re
-
+import aiohttp, json
 from open_webui.utils.chat import generate_chat_completion
 from open_webui.utils.task import (
     title_generation_template,
@@ -462,13 +462,51 @@ async def generate_queries(
         raise e
 
     try:
-        return await generate_chat_completion(request, form_data=payload, user=user)
+        # FIXME sihan: here we hardcode access to task model
+        # print("++++++")
+        # print(request)
+        # print(payload)
+        # print(user)
+        # print("*****")
+        # print(request.app.state.config.OPENAI_API_BASE_URLS)
+        # print(request.json())
+        # return await generate_chat_completion(request, form_data=payload, user=user)
+
+        url = "http://10.7.4.144:9876/v1/chat/completions"
+        web_retrieval_task_model_id = 'Qwen/Qwen2.5-7B-Instruct'
+        payload['model'] = web_retrieval_task_model_id
+        print("generate_query_completion payload: ", payload)
+        res = await generate_query_completion(url, payload)
+        print("+++++++++++", res)
+        return res
+
+
     except Exception as e:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"detail": str(e)},
         )
 
+
+async def generate_query_completion(url, payload):
+    # FIXME sihan: here we hardcode access to task model
+    
+    headers = {
+        "Content-Type": "application/json"
+    }
+    # Custom timeout: 10 seconds total (you can adjust)
+    timeout = aiohttp.ClientTimeout(total=10)
+
+    async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as session:
+        async with session.post(url, headers=headers, json=payload) as response:
+            if response.status == 200:
+                data = await response.json()
+                print(json.dumps(data, indent=2, ensure_ascii=False))
+                return data
+            else:
+                print(f"Request failed with status code {response.status}")
+                print(await response.text())
+                raise
 
 @router.post("/auto/completions")
 async def generate_autocompletion(
