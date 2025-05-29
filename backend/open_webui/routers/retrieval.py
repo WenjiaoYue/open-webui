@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Iterator, List, Optional, Sequence, Union
+import time
 
 from fastapi import (
     Depends,
@@ -1420,6 +1421,7 @@ async def process_web_search(
         web_results = search_web(
             request, request.app.state.config.RAG_WEB_SEARCH_ENGINE, form_data.query
         )
+
     except Exception as e:
         log.exception(e)
 
@@ -1440,13 +1442,13 @@ async def process_web_search(
         urls = [result.link for result in web_results]
         loader = get_web_loader(
             urls,
-            verify_ssl=request.app.state.config.ENABLE_RAG_WEB_LOADER_SSL_VERIFICATION,
+            verify_ssl=False,
             requests_per_second=request.app.state.config.RAG_WEB_SEARCH_CONCURRENT_REQUESTS,
-            trust_env=request.app.state.config.RAG_WEB_SEARCH_TRUST_ENV,
+            trust_env=True # FIXME pass by env https://github.com/open-webui/open-webui/pull/9989/files#diff-65faf260bc7bceb8e36a6178928cc13d2934be3d4c842a8593dc379e929cd6ee
         )
-        docs = await loader.aload()
 
-        if request.app.state.config.BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL:
+        docs = await loader.aload()
+        if False: #request.app.state.config.BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL:
             return {
                 "status": True,
                 "collection_name": None,
@@ -1476,12 +1478,15 @@ async def process_web_search(
                 "filenames": urls,
                 "loaded_count": len(docs),
             }
+        
+
     except Exception as e:
         log.exception(e)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ERROR_MESSAGES.DEFAULT(e),
         )
+
 
 
 class QueryDocForm(BaseModel):
@@ -1547,6 +1552,7 @@ def query_collection_handler(
     user=Depends(get_verified_user),
 ):
     try:
+        print('form_data', form_data)
         if request.app.state.config.ENABLE_RAG_HYBRID_SEARCH:
             return query_collection_with_hybrid_search(
                 collection_names=form_data.collection_names,

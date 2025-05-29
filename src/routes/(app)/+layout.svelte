@@ -35,7 +35,10 @@
 		banners,
 		showSettings,
 		showChangelog,
-		temporaryChatEnabled
+		temporaryChatEnabled,
+
+		showWarning
+
 	} from '$lib/stores';
 
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
@@ -224,13 +227,11 @@
 <SettingsModal bind:show={$showSettings} />
 <ChangelogModal bind:show={$showChangelog} />
 
-{#if version && compareVersion(version.latest, version.current) && ($settings?.showUpdateToast ?? true)}
+{#if $showWarning}
 	<div class=" absolute bottom-8 right-8 z-50" in:fade={{ duration: 100 }}>
 		<UpdateInfoToast
-			{version}
 			on:close={() => {
-				localStorage.setItem('dismissedUpdateToast', Date.now().toString());
-				version = null;
+				showWarning.set(false)
 			}}
 		/>
 	</div>

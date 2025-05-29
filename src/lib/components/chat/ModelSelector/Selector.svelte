@@ -19,7 +19,9 @@
 		mobile,
 		temporaryChatEnabled,
 		settings,
-		config
+		config,
+		USAGE_POOL
+
 	} from '$lib/stores';
 	import { toast } from 'svelte-sonner';
 	import { capitalizeFirstLetter, sanitizeResponseContent, splitStream } from '$lib/utils';
@@ -273,10 +275,13 @@
 		id="model-selector-{id}-button"
 	>
 		<div
-			class="flex w-full text-left px-0.5 outline-none bg-transparent truncate {triggerClassName} justify-between font-medium placeholder-gray-400 focus:outline-none"
+			class="gap-2.5 flex w-full text-left px-0.5 outline-none bg-transparent truncate {triggerClassName} justify-between font-medium placeholder-gray-400 focus:outline-none"
 		>
 			{#if selectedModel}
-				{selectedModel.label}
+				{selectedModel.label} 									
+				<span class="flex items-center justify-center text-xs font-bold bg-green-500/20 text-green-700 dark:text-green-200 w-fit px-2 rounded line-clamp-1 mr-0.5">
+					{ Object.keys($USAGE_POOL?.[selectedModel.label] || {}).length } { $i18n.t('Active Requests') }
+				  </span>
 			{:else}
 				{placeholder}
 			{/if}
@@ -513,6 +518,10 @@
 										{/each}
 									</div>
 								{/if}
+								
+								<!-- {#if Object.keys($USAGE_POOL?.[item.label] || {}).length > 0 } -->
+									<div class="text-xs font-bold bg-green-500/20 text-green-700 dark:text-green-200 w-fit px-2 rounded line-clamp-1 mr-0.5">{Object.keys($USAGE_POOL?.[item.label] || {}).length} {$i18n.t('Active Requests')}</div>
+								<!-- {/if} -->
 							</div>
 						</div>
 

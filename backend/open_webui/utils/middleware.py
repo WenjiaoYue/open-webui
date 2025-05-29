@@ -259,9 +259,17 @@ async def chat_completion_tools_handler(
     return body, {"sources": sources}
 
 
+
 async def chat_web_search_handler(
     request: Request, form_data: dict, extra_params: dict, user
-):
+):  
+    # FIXME
+    req_dict = await request.json()
+    ori_prompt = req_dict["messages"][0]["content"]
+    logging.info(
+        f"chat_web_search_handler  {time.time()}"
+    )
+    print(f'chat_web_search_handler  {time.time()}')
     event_emitter = extra_params["__event_emitter__"]
     await event_emitter(
         {
@@ -274,112 +282,78 @@ async def chat_web_search_handler(
         }
     )
 
+    logging.info(
+        f"event_emitter  {time.time()}"
+        )
+    print(f'event_emitter  {time.time()}')    
     messages = form_data["messages"]
     user_message = get_last_user_message(messages)
+    # searchQuery = queries[0]
+    # FIXME should be the last user_message!!
+    searchQuery = user_message
 
-    queries = []
-    try:
-        res = await generate_queries(
-            request,
-            {
-                "model": form_data["model"],
-                "messages": messages,
-                "prompt": user_message,
-                "type": "web_search",
+    await event_emitter(
+        {
+            "type": "status",
+            "data": {
+                "action": "web_search",
+                "description": 'Searching "{{searchQuery}}"',
+                "query": searchQuery,
+                "done": False,
             },
-            user,
+        }
+    )
+
+    try:
+        logging.info(
+        f"loop start  {time.time()}"
         )
-
-        response = res["choices"][0]["message"]["content"]
-
-        try:
-            bracket_start = response.find("{")
-            bracket_end = response.rfind("}") + 1
-
-            if bracket_start == -1 or bracket_end == -1:
-                raise Exception("No JSON object found in the response")
-
-            response = response[bracket_start:bracket_end]
-            queries = json.loads(response)
-            queries = queries.get("queries", [])
-        except Exception as e:
-            queries = [response]
-
-    except Exception as e:
-        log.exception(e)
-        queries = [user_message]
-
-    if len(queries) == 0:
-        await event_emitter(
-            {
-                "type": "status",
-                "data": {
-                    "action": "web_search",
-                    "description": "No search query generated",
-                    "done": True,
-                },
-            }
-        )
-        return form_data
-
-    all_results = []
-
-    for searchQuery in queries:
-        await event_emitter(
-            {
-                "type": "status",
-                "data": {
-                    "action": "web_search",
-                    "description": 'Searching "{{searchQuery}}"',
+        print(f'loop start  {time.time()}"')
+        # Offload process_web_search to a separate thread
+        results = await process_web_search(
+            request,
+            SearchForm(
+                **{
                     "query": searchQuery,
-                    "done": False,
-                },
-            }
+                }
+            ),
+            user=user,
         )
+        print(f'process_web_search', results)
 
-        try:
-            results = await process_web_search(
-                request,
-                SearchForm(
-                    **{
-                        "query": searchQuery,
-                    }
-                ),
-                user=user,
-            )
+        if results:
 
-            if results:
-                all_results.append(results)
-                files = form_data.get("files", [])
-
-                if results.get("collection_name"):
-                    files.append(
-                        {
-                            "collection_name": results["collection_name"],
-                            "name": searchQuery,
-                            "type": "web_search",
-                            "urls": results["filenames"],
-                        }
-                    )
-                elif results.get("docs"):
-                    files.append(
-                        {
-                            "docs": results.get("docs", []),
-                            "name": searchQuery,
-                            "type": "web_search",
-                            "urls": results["filenames"],
-                        }
-                    )
-
-                form_data["files"] = files
-        except Exception as e:
-            log.exception(e)
             await event_emitter(
                 {
                     "type": "status",
                     "data": {
                         "action": "web_search",
-                        "description": 'Error searching "{{searchQuery}}"',
+                        "description": "Searched {{count}} sites",
+                        "query": searchQuery,
+                        "urls": results["filenames"],
+                        "done": True,
+                    },
+                }
+            )
+
+            files = form_data.get("files", [])
+            files.append(
+                {
+                    "collection_name": results["collection_name"],
+                    "name": searchQuery,
+                    "type": "web_search_results",
+                    "urls": results["filenames"],
+                }
+            )
+            form_data["files"] = files
+
+        else:
+            await event_emitter(
+                {
+                    "type": "status",
+                    "data": {
+                        "action": "web_search",
+                        "description": "No search results found",
                         "query": searchQuery,
                         "done": True,
                         "error": True,
@@ -387,30 +361,20 @@ async def chat_web_search_handler(
                 }
             )
 
-    if all_results:
-        urls = []
-        for results in all_results:
-            if "filenames" in results:
-                urls.extend(results["filenames"])
-
+        logging.info(
+        f"loop end  {time.time()}"
+        )  
+        print(f'loop end  {time.time()} {form_data}')          
+    except Exception as e:
+        log.exception(e)
+        print('Error searching', e)        
         await event_emitter(
             {
                 "type": "status",
                 "data": {
                     "action": "web_search",
-                    "description": "Searched {{count}} sites",
-                    "urls": urls,
-                    "done": True,
-                },
-            }
-        )
-    else:
-        await event_emitter(
-            {
-                "type": "status",
-                "data": {
-                    "action": "web_search",
-                    "description": "No search results found",
+                    "description": 'Error searching "{{searchQuery}}"',
+                    "query": searchQuery,
                     "done": True,
                     "error": True,
                 },
@@ -418,7 +382,6 @@ async def chat_web_search_handler(
         )
 
     return form_data
-
 
 async def chat_image_generation_handler(
     request: Request, form_data: dict, extra_params: dict, user
@@ -751,7 +714,6 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                 ),
                 form_data["messages"],
             )
-
     tool_ids = form_data.pop("tool_ids", None)
     files = form_data.pop("files", None)
 
@@ -801,10 +763,10 @@ async def process_chat_payload(request, form_data, user, metadata, model):
 
             except Exception as e:
                 log.exception(e)
-
     try:
         form_data, flags = await chat_completion_files_handler(request, form_data, user)
         sources.extend(flags.get("sources", []))
+
     except Exception as e:
         log.exception(e)
 
@@ -871,6 +833,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
 async def process_chat_response(
     request, response, form_data, user, metadata, model, events, tasks
 ):
+
     async def background_tasks_handler():
         message_map = Chats.get_messages_by_chat_id(metadata["chat_id"])
         message = message_map.get(metadata["message_id"]) if message_map else None
@@ -1112,6 +1075,7 @@ async def process_chat_response(
 
         # Handle as a background task
         async def post_response_handler(response, events):
+
             def serialize_content_blocks(content_blocks, raw=False):
                 content = ""
 
@@ -1445,28 +1409,12 @@ async def process_chat_response(
             solution_tags = [("|begin_of_solution|", "|end_of_solution|")]
 
             try:
-                for event in events:
-                    await event_emitter(
-                        {
-                            "type": "chat:completion",
-                            "data": event,
-                        }
-                    )
-
-                    # Save message in the database
-                    Chats.upsert_message_to_chat_by_id_and_message_id(
-                        metadata["chat_id"],
-                        metadata["message_id"],
-                        {
-                            **event,
-                        },
-                    )
-
                 async def stream_body_handler(response):
                     nonlocal content
                     nonlocal content_blocks
 
                     response_tool_calls = []
+                    sources = []
 
                     async for line in response.body_iterator:
                         line = line.decode("utf-8") if isinstance(line, bytes) else line
@@ -1486,6 +1434,21 @@ async def process_chat_response(
                         try:
                             data = json.loads(data)
 
+                            if data.get("tool_name"):
+                                sources.append(
+                                    {
+                                        "source": {
+                                            "name": f"TOOL:{data.get('tool_name')}"
+                                        },
+                                        "document": [data.get("tool_content")],
+                                        "metadata": [
+                                            {
+                                                "source": f"TOOL:{data.get('tool_name')}"
+                                            }
+                                        ],
+                                    }
+                                )
+                                events.append({"sources": sources})
                             data, _ = await process_filter_functions(
                                 request=request,
                                 filter_functions=filter_functions,
@@ -1715,8 +1678,24 @@ async def process_chat_response(
 
                     if response.background:
                         await response.background()
-
                 await stream_body_handler(response)
+
+                for event in events:
+                    await event_emitter(
+                        {
+                            "type": "chat:completion",
+                            "data": event,
+                        }
+                    )
+
+                    # Save message in the database
+                    Chats.upsert_message_to_chat_by_id_and_message_id(
+                        metadata["chat_id"],
+                        metadata["message_id"],
+                        {
+                            **event,
+                        },
+                    )
 
                 MAX_TOOL_CALL_RETRIES = 5
                 tool_call_retries = 0

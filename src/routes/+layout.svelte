@@ -92,13 +92,11 @@
 		});
 
 		_socket.on('user-list', (data) => {
-			console.log('user-list', data);
 			activeUserIds.set(data.user_ids);
 		});
 
 		_socket.on('usage', (data) => {
-			console.log('usage', data);
-			USAGE_POOL.set(data['models']);
+			USAGE_POOL.set(data);
 		});
 	};
 

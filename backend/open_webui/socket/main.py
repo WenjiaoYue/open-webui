@@ -49,7 +49,7 @@ else:
 
 
 # Timeout duration in seconds
-TIMEOUT_DURATION = 3
+TIMEOUT_DURATION = 600
 
 # Dictionary to maintain the user pool
 
@@ -107,8 +107,9 @@ async def periodic_usage_pool_cleanup():
                 send_usage = True
 
             if send_usage:
+                print('USAGE_POOL --- 1', USAGE_POOL)
                 # Emit updated usage information after cleaning
-                await sio.emit("usage", {"models": get_models_in_use()})
+                await sio.emit("usage", USAGE_POOL)
 
             await asyncio.sleep(TIMEOUT_DURATION)
     finally:
@@ -130,17 +131,25 @@ def get_models_in_use():
 @sio.on("usage")
 async def usage(sid, data):
     model_id = data["model"]
+    chat_id = data["chat_id"]
+    action = data["action"]
+
     # Record the timestamp for the last update
     current_time = int(time.time())
 
-    # Store the new usage data and task
-    USAGE_POOL[model_id] = {
-        **(USAGE_POOL[model_id] if model_id in USAGE_POOL else {}),
-        sid: {"updated_at": current_time},
-    }
+    if model_id not in USAGE_POOL:
+        USAGE_POOL[model_id] = {}
+
+    if action == "del":
+        if chat_id in USAGE_POOL[model_id]:
+            del USAGE_POOL[model_id][chat_id]
+            print(f"Deleted oldest chat_id '{chat_id}' from model '{model_id}'")
+    else:
+        # Store the new usage data and task
+        USAGE_POOL[model_id][chat_id] = {"updated_at": current_time}
 
     # Broadcast the usage data to all clients
-    await sio.emit("usage", {"models": get_models_in_use()})
+    await sio.emit("usage", USAGE_POOL)
 
 
 @sio.event
@@ -161,7 +170,7 @@ async def connect(sid, environ, auth):
 
             # print(f"user {user.name}({user.id}) connected with session ID {sid}")
             await sio.emit("user-list", {"user_ids": list(USER_POOL.keys())})
-            await sio.emit("usage", {"models": get_models_in_use()})
+            await sio.emit("usage", USAGE_POOL)
 
 
 @sio.on("user-join")
