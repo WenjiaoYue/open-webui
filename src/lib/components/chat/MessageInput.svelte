@@ -1337,7 +1337,7 @@
 														</button>
 													</Tooltip>
 												{/each}
-
+<!-- 
 												{#if showWebSearchButton}
 													<Tooltip content={$i18n.t('Search the internet')} placement="top">
 														<button
@@ -1355,7 +1355,7 @@
 															>
 														</button>
 													</Tooltip>
-												{/if}
+												{/if} -->
 
 												{#if showImageGenerationButton}
 													<Tooltip content={$i18n.t('Generate an image')} placement="top">
@@ -1376,7 +1376,7 @@
 													</Tooltip>
 												{/if}
 
-												{#if showCodeInterpreterButton}
+												<!-- {#if showCodeInterpreterButton}
 													<Tooltip content={$i18n.t('Execute code for analysis')} placement="top">
 														<button
 															on:click|preventDefault={() =>
@@ -1393,7 +1393,7 @@
 															>
 														</button>
 													</Tooltip>
-												{/if}
+												{/if} -->
 											</div>
 										{/if}
 									</div>
@@ -1401,7 +1401,7 @@
 									<div class="self-end flex space-x-1 mr-1 shrink-0">
 										{#if (!history?.currentId || history.messages[history.currentId]?.done == true) && ($_user?.role === 'admin' || ($_user?.permissions?.chat?.stt ?? true))}
 											<!-- {$i18n.t('Record voice')} -->
-											<Tooltip content={$i18n.t('Dictate')}>
+											<!-- <Tooltip content={$i18n.t('Dictate')}>
 												<button
 													id="voice-input-button"
 													class=" text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200 transition rounded-full p-1.5 mr-0.5 self-center"
@@ -1446,7 +1446,7 @@
 														/>
 													</svg>
 												</button>
-											</Tooltip>
+											</Tooltip> -->
 										{/if}
 
 										{#if (taskIds && taskIds.length > 0) || (history.currentId && history.messages[history.currentId]?.done != true)}
@@ -1475,64 +1475,27 @@
 											</div>
 										{:else if prompt === '' && files.length === 0 && ($_user?.role === 'admin' || ($_user?.permissions?.chat?.call ?? true))}
 											<div class=" flex items-center">
-												<!-- {$i18n.t('Call')} -->
-												<Tooltip content={$i18n.t('Voice mode')}>
+												<Tooltip content={$i18n.t('Send message')}>
 													<button
-														class=" bg-black text-white hover:bg-gray-900 dark:bg-white dark:text-black dark:hover:bg-gray-100 transition rounded-full p-1.5 self-center"
-														type="button"
-														on:click={async () => {
-															if (selectedModels.length > 1) {
-																toast.error($i18n.t('Select only one model to call'));
-
-																return;
-															}
-
-															if ($config.audio.stt.engine === 'web') {
-																toast.error(
-																	$i18n.t('Call feature is not supported when using Web STT engine')
-																);
-
-																return;
-															}
-															// check if user has access to getUserMedia
-															try {
-																let stream = await navigator.mediaDevices.getUserMedia({
-																	audio: true
-																});
-																// If the user grants the permission, proceed to show the call overlay
-
-																if (stream) {
-																	const tracks = stream.getTracks();
-																	tracks.forEach((track) => track.stop());
-																}
-
-																stream = null;
-
-																if ($settings.audio?.tts?.engine === 'browser-kokoro') {
-																	// If the user has not initialized the TTS worker, initialize it
-																	if (!$TTSWorker) {
-																		await TTSWorker.set(
-																			new KokoroWorker({
-																				dtype: $settings.audio?.tts?.engineConfig?.dtype ?? 'fp32'
-																			})
-																		);
-
-																		await $TTSWorker.init();
-																	}
-																}
-
-																showCallOverlay.set(true);
-																showControls.set(true);
-															} catch (err) {
-																// If the user denies the permission or an error occurs, show an error message
-																toast.error(
-																	$i18n.t('Permission denied when accessing media devices')
-																);
-															}
-														}}
-														aria-label="Call"
+														id="send-message-button"
+														class="{!(prompt === '' && files.length === 0)
+															? 'bg-black text-white hover:bg-gray-900 dark:bg-white dark:text-black dark:hover:bg-gray-100 '
+															: 'text-white bg-gray-200 dark:text-gray-900 dark:bg-gray-700 disabled'} transition rounded-full p-1.5 self-center"
+														type="submit"
+														disabled={prompt === '' && files.length === 0}
 													>
-														<Headphone className="size-5" />
+														<svg
+															xmlns="http://www.w3.org/2000/svg"
+															viewBox="0 0 16 16"
+															fill="currentColor"
+															class="size-5"
+														>
+															<path
+																fill-rule="evenodd"
+																d="M8 14a.75.75 0 0 1-.75-.75V4.56L4.03 7.78a.75.75 0 0 1-1.06-1.06l4.5-4.5a.75.75 0 0 1 1.06 0l4.5 4.5a.75.75 0 0 1-1.06 1.06L8.75 4.56v8.69A.75.75 0 0 1 8 14Z"
+																clip-rule="evenodd"
+															/>
+														</svg>
 													</button>
 												</Tooltip>
 											</div>

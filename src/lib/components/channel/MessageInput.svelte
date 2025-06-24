@@ -546,7 +546,7 @@
 								</InputMenu>
 							</div>
 
-							<div class="self-end flex space-x-1 mr-1">
+							<!-- <div class="self-end flex space-x-1 mr-1">
 								{#if content === ''}
 									<Tooltip content={$i18n.t('Record voice')}>
 										<button
@@ -620,7 +620,7 @@
 										</Tooltip>
 									</div>
 								</div>
-							</div>
+							</div> -->
 						</div>
 					</div>
 				</form>

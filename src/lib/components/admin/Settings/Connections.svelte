@@ -207,11 +207,6 @@
 	onSubmit={addOpenAIConnectionHandler}
 />
 
-<AddConnectionModal
-	ollama
-	bind:show={showAddOllamaConnectionModal}
-	onSubmit={addOllamaConnectionHandler}
-/>
 
 <form class="flex flex-col h-full justify-between text-sm" on:submit|preventDefault={submitHandler}>
 	<div class=" overflow-y-scroll scrollbar-hidden h-full">
@@ -284,106 +279,6 @@
 				</div>
 			</div>
 
-			<hr class=" border-gray-100 dark:border-gray-850" />
-
-			<div class="pr-1.5 my-2">
-				<div class="flex justify-between items-center text-sm mb-2">
-					<div class="  font-medium">{$i18n.t('Ollama API')}</div>
-
-					<div class="mt-1">
-						<Switch
-							bind:state={ENABLE_OLLAMA_API}
-							on:change={async () => {
-								updateOllamaHandler();
-							}}
-						/>
-					</div>
-				</div>
-
-				{#if ENABLE_OLLAMA_API}
-					<hr class=" border-gray-100 dark:border-gray-850 my-2" />
-
-					<div class="">
-						<div class="flex justify-between items-center">
-							<div class="font-medium">{$i18n.t('Manage Ollama API Connections')}</div>
-
-							<Tooltip content={$i18n.t(`Add Connection`)}>
-								<button
-									class="px-1"
-									on:click={() => {
-										showAddOllamaConnectionModal = true;
-									}}
-									type="button"
-								>
-									<Plus />
-								</button>
-							</Tooltip>
-						</div>
-
-						<div class="flex w-full gap-1.5">
-							<div class="flex-1 flex flex-col gap-1.5 mt-1.5">
-								{#each OLLAMA_BASE_URLS as url, idx}
-									<OllamaConnection
-										bind:url
-										bind:config={OLLAMA_API_CONFIGS[idx]}
-										{idx}
-										onSubmit={() => {
-											updateOllamaHandler();
-										}}
-										onDelete={() => {
-											OLLAMA_BASE_URLS = OLLAMA_BASE_URLS.filter((url, urlIdx) => idx !== urlIdx);
-
-											let newConfig = {};
-											OLLAMA_BASE_URLS.forEach((url, newIdx) => {
-												newConfig[newIdx] = OLLAMA_API_CONFIGS[newIdx < idx ? newIdx : newIdx + 1];
-											});
-											OLLAMA_API_CONFIGS = newConfig;
-										}}
-									/>
-								{/each}
-							</div>
-						</div>
-
-						<div class="mt-1 text-xs text-gray-400 dark:text-gray-500">
-							{$i18n.t('Trouble accessing Ollama?')}
-							<a
-								class=" text-gray-300 font-medium underline"
-								href="https://github.com/open-webui/open-webui#troubleshooting"
-								target="_blank"
-							>
-								{$i18n.t('Click here for help.')}
-							</a>
-						</div>
-					</div>
-				{/if}
-			</div>
-
-			<hr class=" border-gray-100 dark:border-gray-850" />
-
-			<div class="pr-1.5 my-2">
-				<div class="flex justify-between items-center text-sm">
-					<div class="  font-medium">{$i18n.t('Direct Connections')}</div>
-
-					<div class="flex items-center">
-						<div class="">
-							<Switch
-								bind:state={directConnectionsConfig.ENABLE_DIRECT_CONNECTIONS}
-								on:change={async () => {
-									updateDirectConnectionsHandler();
-								}}
-							/>
-						</div>
-					</div>
-				</div>
-
-				<div class="mt-1.5">
-					<div class="text-xs text-gray-500">
-						{$i18n.t(
-							'Direct Connections allow users to connect to their own OpenAI compatible API endpoints.'
-						)}
-					</div>
-				</div>
-			</div>
 		{:else}
 			<div class="flex h-full justify-center">
 				<div class="my-auto">

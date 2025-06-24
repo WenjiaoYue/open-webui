@@ -99,6 +99,7 @@
 		"kokoro-js": "^1.1.1",
 		"marked": "^9.1.0",
 		"mermaid": "^11.6.0",
+		"onnxruntime-node": "^1.22.0-rev",
 		"paneforge": "^0.0.6",
 		"panzoom": "^9.4.3",
 		"prosemirror-commands": "^1.6.0",

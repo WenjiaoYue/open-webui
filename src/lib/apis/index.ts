@@ -1299,30 +1299,122 @@ export const getUsage = async (token: string = '') => {
 };
 
 export const getBackendConfig = async () => {
-	let error = null;
+	// let error = null;
 
-	const res = await fetch(`${WEBUI_BASE_URL}/api/config`, {
-		method: 'GET',
-		credentials: 'include',
-		headers: {
-			'Content-Type': 'application/json'
+	// const res = await fetch(`${WEBUI_BASE_URL}/api/config`, {
+	// 	method: 'GET',
+	// 	credentials: 'include',
+	// 	headers: {
+	// 		'Content-Type': 'application/json'
+	// 	}
+	// })
+	// 	.then(async (res) => {
+	// 		if (!res.ok) throw await res.json();
+	// 		return res.json();
+	// 	})
+	// 	.catch((err) => {
+	// 		console.log(err);
+	// 		error = err;
+	// 		return null;
+	// 	});
+
+	// if (error) {
+	// 	throw error;
+	// }
+
+	
+
+	// return res;
+
+	return {
+		"status": true,
+		"name": "DCAIAgent",
+		"version": "0.5.10",
+		"default_locale": "",
+		"oauth": {
+			"providers": {}
+		},
+		"features": {
+			"auth": true,
+			"auth_trusted_header": false,
+			"enable_ldap": false,
+			"enable_api_key": true,
+			"enable_signup": true,
+			"enable_login_form": true,
+			"enable_websocket": true,
+			"enable_channels": false,
+			"enable_web_search": true,
+			"enable_google_drive_integration": false,
+			"enable_image_generation": false,
+			"enable_community_sharing": true,
+			"enable_message_rating": true,
+			"enable_admin_export": true,
+			"enable_admin_chat_access": true
+		},
+		"default_models": "",
+		"default_prompt_suggestions": [
+			{
+				"title": [
+					"Stand out on socials",
+					"What are some tips for writing a great LinkedIn post?"
+				],
+				"content": "What are some tips for writing a great LinkedIn post? Give strong examples for posts in various scenarios and explain how each strategy will help me stand out."
+			},
+			{
+				"title": [
+					"Going on holiday?",
+					"Write some funny Out of Office email responses to use while I'm on vacation from  January 25 to February 9"
+				],
+				"content": "Write some funny Out of Office email responses to use while I'm on vacation from . Also, include steps for how to set this in Outlook."
+			},
+			{
+				"title": [
+					"Interview warning signs",
+					"What are some red flags to watch out for during an interview?"
+				],
+				"content": "What are 5 warning signs to watch out for during an interview? For each, give examples and suggest what they might reveal about a job. Then help me understand how I can prepare better to spot these red flags."
+			},
+			
+		],
+		"audio": {
+			"tts": {
+				"engine": "",
+				"voice": "alloy",
+				"split_on": "punctuation"
+			},
+			"stt": {
+				"engine": ""
+			}
+		},
+		"file": {
+			"max_size": null,
+			"max_count": null
+		},
+		"permissions": {
+			"workspace": {
+				"models": false,
+				"knowledge": false,
+				"prompts": false,
+				"tools": false
+			},
+			"chat": {
+				"controls": true,
+				"file_upload": true,
+				"delete": true,
+				"edit": true,
+				"temporary": true
+			},
+			"features": {
+				"web_search": true,
+				"image_generation": true,
+				"code_interpreter": true
+			}
+		},
+		"google_drive": {
+			"client_id": "",
+			"api_key": ""
 		}
-	})
-		.then(async (res) => {
-			if (!res.ok) throw await res.json();
-			return res.json();
-		})
-		.catch((err) => {
-			console.error(err);
-			error = err;
-			return null;
-		});
-
-	if (error) {
-		throw error;
 	}
-
-	return res;
 };
 
 export const getChangelog = async () => {

@@ -114,7 +114,7 @@
 				}}
 				class="px-3.5 py-1.5 text-sm font-medium bg-black hover:bg-gray-900 text-white dark:bg-white dark:text-black dark:hover:bg-gray-100 transition rounded-full"
 			>
-				<span class="relative">{$i18n.t("Okay, Let's Go!")}</span>
+				<span class="relative">111{$i18n.t("Okay, Let's Go!")}</span>
 			</button>
 		</div>
 	</div>
