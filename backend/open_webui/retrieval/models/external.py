@@ -12,47 +12,52 @@ log.setLevel(SRC_LOG_LEVELS["RAG"])
 
 class ExternalReranker(BaseReranker):
     def __init__(
-        self,
-        api_key: str,
-        url: str = "http://localhost:8080/v1/rerank",
-        model: str = "reranker",
+            self,
+            api_key: str,
+            url: str = "http://localhost:8080/rerank",
+            model: Optional[str] = None,
     ):
         self.api_key = api_key
         self.url = url
+        # self.model is not needed for the TEI request payload but we store it in case.
         self.model = model
 
     def predict(self, sentences: List[Tuple[str, str]]) -> Optional[List[float]]:
+        if not sentences:
+            return []
+
         query = sentences[0][0]
         docs = [i[1] for i in sentences]
 
         payload = {
-            "model": self.model,
             "query": query,
-            "documents": docs,
+            "texts": docs,
             "top_n": len(docs),
         }
 
-        try:
-            log.info(f"ExternalReranker:predict:model {self.model}")
-            log.info(f"ExternalReranker:predict:query {query}")
+        headers = {
+            "Content-Type": "application/json",
+        }
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
 
+        try:
+            log.debug(f"ExternalReranker:predict:query {query}")
+            log.debug(f"ExternalReranker:predict:payload {payload}")
             r = requests.post(
-                f"{self.url}",
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {self.api_key}",
-                },
+                self.url,
+                headers=headers,
                 json=payload,
             )
-
             r.raise_for_status()
             data = r.json()
 
-            if "results" in data:
-                sorted_results = sorted(data["results"], key=lambda x: x["index"])
-                return [result["relevance_score"] for result in sorted_results]
+            if isinstance(data, list):
+                # The response is a list of dicts: [{"index": 0, "score": 0.9}, {"index": 1, "score": 0.1}]
+                sorted_results = sorted(data, key=lambda x: x["index"])
+                return [result["score"] for result in sorted_results]
             else:
-                log.error("No results found in external reranking response")
+                log.error(f"Unexpected response format from reranker. Expected a list, got {type(data)}")
                 return None
 
         except Exception as e:
