@@ -38,7 +38,7 @@
 	let showResetUploadDirConfirm = false;
 	let showReindexConfirm = false;
 
-	let embeddingEngine = '';
+	let embeddingEngine = 'openai';
 	let embeddingModel = '';
 	let embeddingBatchSize = 1;
 	let rerankingModel = '';
@@ -106,7 +106,7 @@
 
 		updateEmbeddingModelLoading = true;
 		const res = await updateEmbeddingConfig(localStorage.token, {
-			embedding_engine: embeddingEngine,
+			embedding_engine: 'openai',
 			embedding_model: embeddingModel,
 			embedding_batch_size: embeddingBatchSize,
 			ollama_config: {
@@ -215,7 +215,7 @@
 		const embeddingConfig = await getEmbeddingConfig(localStorage.token);
 
 		if (embeddingConfig) {
-			embeddingEngine = embeddingConfig.embedding_engine;
+			embeddingEngine = 'openai';
 			embeddingModel = embeddingConfig.embedding_model;
 			embeddingBatchSize = embeddingConfig.embedding_batch_size ?? 1;
 
@@ -246,6 +246,7 @@
 			null,
 			2
 		);
+		config.CONTENT_EXTRACTION_ENGINE = 'external';
 
 		RAGConfig = config;
 	});
@@ -317,13 +318,14 @@
 									class="dark:bg-gray-900 w-fit pr-8 rounded-sm px-2 text-xs bg-transparent outline-hidden text-right"
 									bind:value={RAGConfig.CONTENT_EXTRACTION_ENGINE}
 								>
-									<option value="">{$i18n.t('Default')}</option>
 									<option value="external">{$i18n.t('External')}</option>
-									<option value="tika">{$i18n.t('Tika')}</option>
+
+									<!-- <option value="">{$i18n.t('Default')}</option> -->
+									<!-- <option value="tika">{$i18n.t('Tika')}</option>
 									<option value="docling">{$i18n.t('Docling')}</option>
 									<option value="datalab_marker">{$i18n.t('Datalab Marker API')}</option>
 									<option value="document_intelligence">{$i18n.t('Document Intelligence')}</option>
-									<option value="mistral_ocr">{$i18n.t('Mistral OCR')}</option>
+									<option value="mistral_ocr">{$i18n.t('Mistral OCR')}</option> -->
 								</select>
 							</div>
 						</div>
@@ -703,21 +705,28 @@
 										bind:value={embeddingEngine}
 										placeholder="Select an embedding model engine"
 										on:change={(e) => {
-											if (e.target.value === 'ollama') {
-												embeddingModel = '';
-											} else if (e.target.value === 'openai') {
+											// if (e.target.value === 'ollama') {
+											// 	embeddingModel = '';
+											// } 
+											// else 
+											if (e.target.value === 'openai') {
 												embeddingModel = 'text-embedding-3-small';
-											} else if (e.target.value === 'azure_openai') {
-												embeddingModel = 'text-embedding-3-small';
-											} else if (e.target.value === '') {
+											} 
+											// else 
+											// if (e.target.value === 'azure_openai') {
+											// 	embeddingModel = 'text-embedding-3-small';
+											// } 
+											else 
+											if (e.target.value === '') {
 												embeddingModel = 'sentence-transformers/all-MiniLM-L6-v2';
 											}
 										}}
 									>
-										<option value="">{$i18n.t('Default (SentenceTransformers)')}</option>
-										<option value="ollama">{$i18n.t('Ollama')}</option>
 										<option value="openai">{$i18n.t('OpenAI')}</option>
-										<option value="azure_openai">Azure OpenAI</option>
+
+										<!-- <option value="">{$i18n.t('Default (SentenceTransformers)')}</option> -->
+										<!-- <option value="ollama">{$i18n.t('Ollama')}</option> -->
+										<!-- <option value="azure_openai">Azure OpenAI</option> -->
 									</select>
 								</div>
 							</div>
@@ -1190,7 +1199,7 @@
 					</div>
 				</div>
 
-				<div class="mb-3">
+				<!-- <div class="mb-3">
 					<div class=" mb-2.5 text-base font-medium">{$i18n.t('Integration')}</div>
 
 					<hr class=" border-gray-100 dark:border-gray-850 my-2" />
@@ -1208,7 +1217,7 @@
 							<Switch bind:state={RAGConfig.ENABLE_ONEDRIVE_INTEGRATION} />
 						</div>
 					</div>
-				</div>
+				</div> -->
 
 				<div class="mb-3">
 					<div class=" mb-2.5 text-base font-medium">{$i18n.t('Danger Zone')}</div>

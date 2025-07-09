@@ -213,7 +213,7 @@
 					</select>
 				</div>
 			</div>
-
+<!-- 
 			<div class=" flex w-full justify-between">
 				<div class=" self-center text-xs font-medium">{$i18n.t('Language')}</div>
 				<div class="flex items-center relative">
@@ -244,7 +244,7 @@
 						Help us translate Open WebUI!
 					</a>
 				</div>
-			{/if}
+			{/if} -->
 
 			<div>
 				<div class=" py-0.5 flex w-full justify-between">
