@@ -19,9 +19,6 @@ class CustomBuildHook(BuildHookInterface):
         stderr.write("### Installing onnxruntime-node\n")
         subprocess.run([npm, "install", "onnxruntime-node", "--onnxruntime-node-install-cuda=skip"], check=True)  # noqa: S603
         
-        stderr.write("### Installing huggingface/transformers.js\n")
-        subprocess.run([npm, "i", "@huggingface/transformers"], check=True)  # noqa: S603
-        
         ort_version = "1.20.1"
         ort_url = f"https://github.com/microsoft/onnxruntime/releases/download/v{ort_version}/onnxruntime-linux-x64-gpu-{ort_version}.tgz"
         
