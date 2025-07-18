@@ -131,7 +131,6 @@
 			reranking_model: rerankingModel
 		}).catch(async (error) => {
 			toast.error(`${error}`);
-			await setRerankingConfig();
 			return null;
 		});
 		updateRerankingModelLoading = false;
@@ -206,19 +205,12 @@
 		}
 	};
 
-	const setRerankingConfig = async () => {
-		const rerankingConfig = await getRerankingConfig(localStorage.token);
-
-		if (rerankingConfig) {
-			rerankingModel = rerankingConfig.reranking_model;
-		}
-	};
-
 	onMount(async () => {
 		await setEmbeddingConfig();
-		await setRerankingConfig();
 
 		RAGConfig = await getRAGConfig(localStorage.token);
+		console.log('RAGConfig', RAGConfig);
+		
 	});
 </script>
 
