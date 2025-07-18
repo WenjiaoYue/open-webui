@@ -1818,6 +1818,12 @@ RAG_RELEVANCE_THRESHOLD = PersistentConfig(
     float(os.environ.get("RAG_RELEVANCE_THRESHOLD", "0.0")),
 )
 
+RAG_BM25_WEIGHT = PersistentConfig(
+    "RAG_BM25_WEIGHT",
+    "rag.bm25_weight",
+    float(os.environ.get("RAG_BM25_WEIGHT", "0.5")),
+)
+
 ENABLE_RAG_HYBRID_SEARCH = PersistentConfig(
     "ENABLE_RAG_HYBRID_SEARCH",
     "rag.enable_hybrid_search",
@@ -1895,6 +1901,12 @@ RAG_EMBEDDING_PREFIX_FIELD_NAME = os.environ.get(
     "RAG_EMBEDDING_PREFIX_FIELD_NAME", None
 )
 
+RAG_RERANKING_ENGINE = PersistentConfig(
+    "RAG_RERANKING_ENGINE",
+    "rag.reranking_engine",
+    os.environ.get("RAG_RERANKING_ENGINE", ""),
+)
+
 RAG_RERANKING_MODEL = PersistentConfig(
     "RAG_RERANKING_MODEL",
     "rag.reranking_model",
@@ -1912,6 +1924,17 @@ RAG_RERANKING_MODEL_TRUST_REMOTE_CODE = (
     os.environ.get("RAG_RERANKING_MODEL_TRUST_REMOTE_CODE", "True").lower() == "true"
 )
 
+RAG_EXTERNAL_RERANKER_URL = PersistentConfig(
+    "RAG_EXTERNAL_RERANKER_URL",
+    "rag.external_reranker_url",
+    os.environ.get("RAG_EXTERNAL_RERANKER_URL", ""),
+)
+
+RAG_EXTERNAL_RERANKER_API_KEY = PersistentConfig(
+    "RAG_EXTERNAL_RERANKER_API_KEY",
+    "rag.external_reranker_api_key",
+    os.environ.get("RAG_EXTERNAL_RERANKER_API_KEY", ""),
+)
 
 RAG_TEXT_SPLITTER = PersistentConfig(
     "RAG_TEXT_SPLITTER",
