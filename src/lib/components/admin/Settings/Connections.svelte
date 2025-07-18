@@ -206,12 +206,12 @@
 	bind:show={showAddOpenAIConnectionModal}
 	onSubmit={addOpenAIConnectionHandler}
 />
-
+<!-- 
 <AddConnectionModal
 	ollama
 	bind:show={showAddOllamaConnectionModal}
 	onSubmit={addOllamaConnectionHandler}
-/>
+/> -->
 
 <form class="flex flex-col h-full justify-between text-sm" on:submit|preventDefault={submitHandler}>
 	<div class=" overflow-y-scroll scrollbar-hidden h-full">
@@ -284,7 +284,7 @@
 				</div>
 			</div>
 
-			<hr class=" border-gray-100 dark:border-gray-850" />
+			<!-- <hr class=" border-gray-100 dark:border-gray-850" />
 
 			<div class="pr-1.5 my-2">
 				<div class="flex justify-between items-center text-sm mb-2">
@@ -383,7 +383,7 @@
 						)}
 					</div>
 				</div>
-			</div>
+			</div> -->
 		{:else}
 			<div class="flex h-full justify-center">
 				<div class="my-auto">

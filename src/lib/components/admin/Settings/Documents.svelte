@@ -289,10 +289,10 @@
 									bind:value={RAGConfig.CONTENT_EXTRACTION_ENGINE}
 								>
 									<option value="">{$i18n.t('Default')}</option>
-									<option value="tika">{$i18n.t('Tika')}</option>
+									<!-- <option value="tika">{$i18n.t('Tika')}</option>
 									<option value="docling">{$i18n.t('Docling')}</option>
 									<option value="document_intelligence">{$i18n.t('Document Intelligence')}</option>
-									<option value="mistral_ocr">{$i18n.t('Mistral OCR')}</option>
+									<option value="mistral_ocr">{$i18n.t('Mistral OCR')}</option> -->
 								</select>
 							</div>
 						</div>
@@ -378,7 +378,7 @@
 									bind:value={RAGConfig.TEXT_SPLITTER}
 								>
 									<option value="">{$i18n.t('Default')} ({$i18n.t('Character')})</option>
-									<option value="token">{$i18n.t('Token')} ({$i18n.t('Tiktoken')})</option>
+									<!-- <option value="token">{$i18n.t('Token')} ({$i18n.t('Tiktoken')})</option> -->
 								</select>
 							</div>
 						</div>
@@ -441,15 +441,17 @@
 										on:change={(e) => {
 											if (e.target.value === 'ollama') {
 												embeddingModel = '';
-											} else if (e.target.value === 'openai') {
+											} 
+											else if (e.target.value === 'openai') {
 												embeddingModel = 'text-embedding-3-small';
-											} else if (e.target.value === '') {
+											} 
+											else if (e.target.value === '') {
 												embeddingModel = 'sentence-transformers/all-MiniLM-L6-v2';
 											}
 										}}
 									>
 										<option value="">{$i18n.t('Default (SentenceTransformers)')}</option>
-										<option value="ollama">{$i18n.t('Ollama')}</option>
+										<!-- <option value="ollama">{$i18n.t('Ollama')}</option> -->
 										<option value="openai">{$i18n.t('OpenAI')}</option>
 									</select>
 								</div>
@@ -633,6 +635,48 @@
 							</div>
 
 							{#if RAGConfig.ENABLE_RAG_HYBRID_SEARCH === true}
+								<div class="  mb-2.5 flex flex-col w-full justify-between">
+									<div class="flex w-full justify-between">
+										<div class=" self-center text-xs font-medium">
+											{$i18n.t('Reranking Engine')}
+										</div>
+										<div class="flex items-center relative">
+											<select
+												class="dark:bg-gray-900 w-fit pr-8 rounded-sm px-2 p-1 text-xs bg-transparent outline-hidden text-right"
+												bind:value={RAGConfig.RAG_RERANKING_ENGINE}
+												placeholder="Select a reranking model engine"
+												on:change={(e) => {
+													if (e.target.value === 'external') {
+														RAGConfig.RAG_RERANKING_MODEL = '';
+													} else if (e.target.value === '') {
+														RAGConfig.RAG_RERANKING_MODEL = 'BAAI/bge-reranker-v2-m3';
+													}
+												}}
+											>
+												<option value="">{$i18n.t('Default (SentenceTransformers)')}</option>
+												<option value="external">{$i18n.t('External')}</option>
+											</select>
+										</div>
+									</div>
+
+									{#if RAGConfig.RAG_RERANKING_ENGINE === 'external'}
+										<div class="my-0.5 flex gap-2 pr-2">
+											<input
+												class="flex-1 w-full text-sm bg-transparent outline-hidden"
+												placeholder={$i18n.t('API Base URL')}
+												bind:value={RAGConfig.RAG_EXTERNAL_RERANKER_URL}
+												required
+											/>
+
+											<SensitiveInput
+												placeholder={$i18n.t('API Key')}
+												bind:value={RAGConfig.RAG_EXTERNAL_RERANKER_API_KEY}
+												required={false}
+											/>
+										</div>
+									{/if}
+								</div>
+
 								<div class="  mb-2.5 flex flex-col w-full">
 									<div class=" mb-1 text-xs font-medium">{$i18n.t('Reranking Model')}</div>
 
@@ -640,66 +684,13 @@
 										<div class="flex w-full">
 											<div class="flex-1 mr-2">
 												<input
-													class="flex-1 w-full rounded-lg text-sm bg-transparent outline-hidden"
+													class="flex-1 w-full text-sm bg-transparent outline-hidden"
 													placeholder={$i18n.t('Set reranking model (e.g. {{model}})', {
 														model: 'BAAI/bge-reranker-v2-m3'
 													})}
-													bind:value={rerankingModel}
+													bind:value={RAGConfig.RAG_RERANKING_MODEL}
 												/>
 											</div>
-											<button
-												class="px-2.5 bg-transparent text-gray-800 dark:bg-transparent dark:text-gray-100 rounded-lg transition"
-												on:click={() => {
-													rerankingModelUpdateHandler();
-												}}
-												disabled={updateRerankingModelLoading}
-											>
-												{#if updateRerankingModelLoading}
-													<div class="self-center">
-														<svg
-															class=" w-4 h-4"
-															viewBox="0 0 24 24"
-															fill="currentColor"
-															xmlns="http://www.w3.org/2000/svg"
-														>
-															<style>
-																.spinner_ajPY {
-																	transform-origin: center;
-																	animation: spinner_AtaB 0.75s infinite linear;
-																}
-
-																@keyframes spinner_AtaB {
-																	100% {
-																		transform: rotate(360deg);
-																	}
-																}
-															</style>
-															<path
-																d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z"
-																opacity=".25"
-															/>
-															<path
-																d="M10.14,1.16a11,11,0,0,0-9,8.92A1.59,1.59,0,0,0,2.46,12,1.52,1.52,0,0,0,4.11,10.7a8,8,0,0,1,6.66-6.61A1.42,1.42,0,0,0,12,2.69h0A1.57,1.57,0,0,0,10.14,1.16Z"
-																class="spinner_ajPY"
-															/>
-														</svg>
-													</div>
-												{:else}
-													<svg
-														xmlns="http://www.w3.org/2000/svg"
-														viewBox="0 0 16 16"
-														fill="currentColor"
-														class="w-4 h-4"
-													>
-														<path
-															d="M8.75 2.75a.75.75 0 0 0-1.5 0v5.69L5.03 6.22a.75.75 0 0 0-1.06 1.06l3.5 3.5a.75.75 0 0 0 1.06 0l3.5-3.5a.75.75 0 0 0-1.06-1.06L8.75 8.44V2.75Z"
-														/>
-														<path
-															d="M3.5 9.75a.75.75 0 0 0-1.5 0v1.5A2.75 2.75 0 0 0 4.75 14h6.5A2.75 2.75 0 0 0 14 11.25v-1.5a.75.75 0 0 0-1.5 0v1.5c0 .69-.56 1.25-1.25 1.25h-6.5c-.69 0-1.25-.56-1.25-1.25v-1.5Z"
-														/>
-													</svg>
-												{/if}
-											</button>
 										</div>
 									</div>
 								</div>
@@ -835,7 +826,7 @@
 					</div>
 				</div>
 
-				<div class="mb-3">
+				<!-- <div class="mb-3">
 					<div class=" mb-2.5 text-base font-medium">{$i18n.t('Integration')}</div>
 
 					<hr class=" border-gray-100 dark:border-gray-850 my-2" />
@@ -853,7 +844,7 @@
 							<Switch bind:state={RAGConfig.ENABLE_ONEDRIVE_INTEGRATION} />
 						</div>
 					</div>
-				</div>
+				</div> -->
 
 				<div class="mb-3">
 					<div class=" mb-2.5 text-base font-medium">{$i18n.t('Danger Zone')}</div>

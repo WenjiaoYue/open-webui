@@ -123,95 +123,95 @@
 				'alwaysonwebsearch'
 			]
 		},
-		{
-			id: 'connections',
-			title: 'Connections',
-			keywords: []
-		},
-		{
-			id: 'tools',
-			title: 'Tools',
-			keywords: []
-		},
-		{
-			id: 'personalization',
-			title: 'Personalization',
-			keywords: [
-				'personalization',
-				'memory',
-				'personalize',
-				'preferences',
-				'profile',
-				'personalsettings',
-				'customsettings',
-				'userpreferences',
-				'accountpreferences'
-			]
-		},
-		{
-			id: 'audio',
-			title: 'Audio',
-			keywords: [
-				'audio',
-				'sound',
-				'soundsettings',
-				'audiocontrol',
-				'volume',
-				'speech',
-				'speechrecognition',
-				'stt',
-				'speechtotext',
-				'tts',
-				'texttospeech',
-				'playback',
-				'playbackspeed',
-				'voiceplayback',
-				'speechplayback',
-				'audiooutput',
-				'speechengine',
-				'voicecontrol',
-				'audioplayback',
-				'transcription',
-				'autotranscribe',
-				'autosend',
-				'speechsettings',
-				'audiovoice',
-				'voiceoptions',
-				'setvoice',
-				'nonlocalvoices',
-				'savesettings',
-				'audioconfig',
-				'speechconfig',
-				'voicerecognition',
-				'speechsynthesis',
-				'speechmode',
-				'voicespeed',
-				'speechrate',
-				'speechspeed',
-				'audioinput',
-				'audiofeatures',
-				'voicemodes'
-			]
-		},
-		{
-			id: 'chats',
-			title: 'Chats',
-			keywords: [
-				'chat',
-				'messages',
-				'conversations',
-				'chatsettings',
-				'history',
-				'chathistory',
-				'messagehistory',
-				'messagearchive',
-				'convo',
-				'chats',
-				'conversationhistory',
-				'exportmessages',
-				'chatactivity'
-			]
-		},
+		// {
+		// 	id: 'connections',
+		// 	title: 'Connections',
+		// 	keywords: []
+		// },
+		// {
+		// 	id: 'tools',
+		// 	title: 'Tools',
+		// 	keywords: []
+		// },
+		// {
+		// 	id: 'personalization',
+		// 	title: 'Personalization',
+		// 	keywords: [
+		// 		'personalization',
+		// 		'memory',
+		// 		'personalize',
+		// 		'preferences',
+		// 		'profile',
+		// 		'personalsettings',
+		// 		'customsettings',
+		// 		'userpreferences',
+		// 		'accountpreferences'
+		// 	]
+		// },
+		// {
+		// 	id: 'audio',
+		// 	title: 'Audio',
+		// 	keywords: [
+		// 		'audio',
+		// 		'sound',
+		// 		'soundsettings',
+		// 		'audiocontrol',
+		// 		'volume',
+		// 		'speech',
+		// 		'speechrecognition',
+		// 		'stt',
+		// 		'speechtotext',
+		// 		'tts',
+		// 		'texttospeech',
+		// 		'playback',
+		// 		'playbackspeed',
+		// 		'voiceplayback',
+		// 		'speechplayback',
+		// 		'audiooutput',
+		// 		'speechengine',
+		// 		'voicecontrol',
+		// 		'audioplayback',
+		// 		'transcription',
+		// 		'autotranscribe',
+		// 		'autosend',
+		// 		'speechsettings',
+		// 		'audiovoice',
+		// 		'voiceoptions',
+		// 		'setvoice',
+		// 		'nonlocalvoices',
+		// 		'savesettings',
+		// 		'audioconfig',
+		// 		'speechconfig',
+		// 		'voicerecognition',
+		// 		'speechsynthesis',
+		// 		'speechmode',
+		// 		'voicespeed',
+		// 		'speechrate',
+		// 		'speechspeed',
+		// 		'audioinput',
+		// 		'audiofeatures',
+		// 		'voicemodes'
+		// 	]
+		// },
+		// {
+		// 	id: 'chats',
+		// 	title: 'Chats',
+		// 	keywords: [
+		// 		'chat',
+		// 		'messages',
+		// 		'conversations',
+		// 		'chatsettings',
+		// 		'history',
+		// 		'chathistory',
+		// 		'messagehistory',
+		// 		'messagearchive',
+		// 		'convo',
+		// 		'chats',
+		// 		'conversationhistory',
+		// 		'exportmessages',
+		// 		'chatactivity'
+		// 	]
+		// },
 		{
 			id: 'account',
 			title: 'Account',
@@ -265,33 +265,33 @@
 				'users'
 			]
 		},
-		{
-			id: 'about',
-			title: 'About',
-			keywords: [
-				'about',
-				'info',
-				'information',
-				'version',
-				'documentation',
-				'help',
-				'support',
-				'details',
-				'aboutus',
-				'softwareinfo',
-				'timothyjaeryangbaek',
-				'openwebui',
-				'release',
-				'updates',
-				'updateinfo',
-				'versioninfo',
-				'aboutapp',
-				'terms',
-				'termsandconditions',
-				'contact',
-				'aboutpage'
-			]
-		}
+		// {
+		// 	id: 'about',
+		// 	title: 'About',
+		// 	keywords: [
+		// 		'about',
+		// 		'info',
+		// 		'information',
+		// 		'version',
+		// 		'documentation',
+		// 		'help',
+		// 		'support',
+		// 		'details',
+		// 		'aboutus',
+		// 		'softwareinfo',
+		// 		'timothyjaeryangbaek',
+		// 		'openwebui',
+		// 		'release',
+		// 		'updates',
+		// 		'updateinfo',
+		// 		'versioninfo',
+		// 		'aboutapp',
+		// 		'terms',
+		// 		'termsandconditions',
+		// 		'contact',
+		// 		'aboutpage'
+		// 	]
+		// }
 	];
 
 	let search = '';
@@ -436,7 +436,7 @@
 								<div class=" self-center">{$i18n.t('General')}</div>
 							</button>
 						{:else if tabId === 'interface'}
-							<button
+							<!-- <button
 								class="px-0.5 py-1 min-w-fit rounded-lg flex-1 md:flex-none flex text-left transition {selectedTab ===
 								'interface'
 									? ''
@@ -460,7 +460,7 @@
 									</svg>
 								</div>
 								<div class=" self-center">{$i18n.t('Interface')}</div>
-							</button>
+							</button> -->
 						{:else if tabId === 'connections'}
 							{#if $user?.role === 'admin' || ($user?.role === 'user' && $config?.features?.enable_direct_connections)}
 								<button
@@ -695,7 +695,7 @@
 							toast.success($i18n.t('Settings saved successfully!'));
 						}}
 					/>
-				{:else if selectedTab === 'tools'}
+				<!-- {:else if selectedTab === 'tools'}
 					<Tools
 						saveSettings={async (updated) => {
 							await saveSettings(updated);
@@ -717,7 +717,7 @@
 						}}
 					/>
 				{:else if selectedTab === 'chats'}
-					<Chats {saveSettings} />
+					<Chats {saveSettings} /> -->
 				{:else if selectedTab === 'account'}
 					<Account
 						{saveSettings}
@@ -725,8 +725,8 @@
 							toast.success($i18n.t('Settings saved successfully!'));
 						}}
 					/>
-				{:else if selectedTab === 'about'}
-					<About />
+				<!-- {:else if selectedTab === 'about'}
+					<About /> -->
 				{/if}
 			</div>
 		</div>

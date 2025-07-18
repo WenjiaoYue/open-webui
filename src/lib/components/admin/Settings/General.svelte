@@ -120,8 +120,8 @@
 				<div class="mb-3.5">
 					<div class=" mb-2.5 text-base font-medium">{$i18n.t('General')}</div>
 
-					<hr class=" border-gray-100 dark:border-gray-850 my-2" />
-
+					<!-- <hr class=" border-gray-100 dark:border-gray-850 my-2" /> -->
+<!-- 
 					<div class="mb-2.5">
 						<div class=" mb-1 text-xs font-medium flex space-x-2 items-center">
 							<div>
@@ -262,13 +262,8 @@
 								{/if}
 							</div>
 
-							<!-- <button
-								class="flex-shrink-0 text-xs px-3 py-1.5 bg-gray-50 hover:bg-gray-100 dark:bg-gray-850 dark:hover:bg-gray-800 transition rounded-lg font-medium"
-							>
-								{$i18n.t('Activate')}
-							</button> -->
 						</div>
-					</div>
+					</div> -->
 				</div>
 
 				<div class="mb-3">
@@ -346,7 +341,7 @@
 							</div>
 						{/if}
 					{/if}
-
+<!-- 
 					<div class=" mb-2.5 w-full justify-between">
 						<div class="flex w-full justify-between">
 							<div class=" self-center text-xs font-medium">{$i18n.t('JWT Expiration')}</div>
@@ -367,9 +362,9 @@
 								>{$i18n.t("'s', 'm', 'h', 'd', 'w' or '-1' for no expiration.")}</span
 							>
 						</div>
-					</div>
+					</div> -->
 
-					<div class=" space-y-3">
+					<!-- <div class=" space-y-3">
 						<div class="mt-2 space-y-2 pr-1.5">
 							<div class="flex justify-between items-center text-sm">
 								<div class="  font-medium">{$i18n.t('LDAP')}</div>
@@ -579,10 +574,10 @@
 								</div>
 							{/if}
 						</div>
-					</div>
+					</div> -->
 				</div>
 
-				<div class="mb-3">
+				<!-- <div class="mb-3">
 					<div class=" mb-2.5 text-base font-medium">{$i18n.t('Features')}</div>
 
 					<hr class=" border-gray-100 dark:border-gray-850 my-2" />
@@ -652,7 +647,7 @@
 							/>
 						</div>
 					</div>
-				</div>
+				</div> -->
 			</div>
 		{/if}
 	</div>

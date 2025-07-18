@@ -121,7 +121,7 @@
 			<div class=" self-center">{$i18n.t('Models')}</div>
 		</button>
 
-		<button
+		<!-- <button
 			class="px-0.5 py-1 min-w-fit rounded-lg flex-1 md:flex-none flex text-left transition {selectedTab ===
 			'evaluations'
 				? ''
@@ -134,9 +134,9 @@
 				<DocumentChartBar />
 			</div>
 			<div class=" self-center">{$i18n.t('Evaluations')}</div>
-		</button>
+		</button> -->
 
-		<button
+		<!-- <button
 			class="px-0.5 py-1 min-w-fit rounded-lg flex-1 md:flex-none flex text-left transition {selectedTab ===
 			'tools'
 				? ''
@@ -160,7 +160,7 @@
 				</svg>
 			</div>
 			<div class=" self-center">{$i18n.t('Tools')}</div>
-		</button>
+		</button> -->
 
 		<button
 			class="px-0.5 py-1 min-w-fit rounded-lg flex-1 md:flex-none flex text-left transition {selectedTab ===
@@ -192,7 +192,7 @@
 			<div class=" self-center">{$i18n.t('Documents')}</div>
 		</button>
 
-		<button
+		<!-- <button
 			class="px-0.5 py-1 min-w-fit rounded-lg flex-1 md:flex-none flex text-left transition {selectedTab ===
 			'web'
 				? ''
@@ -214,8 +214,8 @@
 				</svg>
 			</div>
 			<div class=" self-center">{$i18n.t('Web Search')}</div>
-		</button>
-
+		</button> -->
+<!-- 
 		<button
 			class="px-0.5 py-1 min-w-fit rounded-lg flex-1 md:flex-none flex text-left transition {selectedTab ===
 			'code-execution'
@@ -240,7 +240,7 @@
 				</svg>
 			</div>
 			<div class=" self-center">{$i18n.t('Code Execution')}</div>
-		</button>
+		</button> -->
 
 		<button
 			class="px-0.5 py-1 min-w-fit rounded-lg flex-1 md:flex-none flex text-left transition {selectedTab ===
@@ -268,7 +268,7 @@
 			<div class=" self-center">{$i18n.t('Interface')}</div>
 		</button>
 
-		<button
+		<!-- <button
 			class="px-0.5 py-1 min-w-fit rounded-lg flex-1 md:flex-none flex text-left transition {selectedTab ===
 			'audio'
 				? ''
@@ -293,9 +293,9 @@
 				</svg>
 			</div>
 			<div class=" self-center">{$i18n.t('Audio')}</div>
-		</button>
+		</button> -->
 
-		<button
+		<!-- <button
 			class="px-0.5 py-1 min-w-fit rounded-lg flex-1 md:flex-none flex text-left transition {selectedTab ===
 			'images'
 				? ''
@@ -319,9 +319,9 @@
 				</svg>
 			</div>
 			<div class=" self-center">{$i18n.t('Images')}</div>
-		</button>
+		</button> -->
 
-		<button
+		<!-- <button
 			class="px-0.5 py-1 min-w-fit rounded-lg flex-1 md:flex-none flex text-left transition {selectedTab ===
 			'pipelines'
 				? ''
@@ -377,7 +377,7 @@
 				</svg>
 			</div>
 			<div class=" self-center">{$i18n.t('Database')}</div>
-		</button>
+		</button> -->
 	</div>
 
 	<div class="flex-1 mt-3 lg:mt-0 overflow-y-scroll pr-1 scrollbar-hidden">
@@ -398,10 +398,10 @@
 			/>
 		{:else if selectedTab === 'models'}
 			<Models />
-		{:else if selectedTab === 'evaluations'}
+		<!-- {:else if selectedTab === 'evaluations'}
 			<Evaluations />
 		{:else if selectedTab === 'tools'}
-			<Tools />
+			<Tools /> -->
 		{:else if selectedTab === 'documents'}
 			<Documents
 				on:save={async () => {

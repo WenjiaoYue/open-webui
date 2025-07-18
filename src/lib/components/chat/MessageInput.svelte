@@ -1264,7 +1264,7 @@
 											</div>
 										{:else if prompt === '' && files.length === 0 && ($_user?.role === 'admin' || ($_user?.permissions?.chat?.call ?? true))}
 											<div class=" flex items-center">
-												<Tooltip content={$i18n.t('Call')}>
+												<!-- <Tooltip content={$i18n.t('Call')}>
 													<button
 														class=" bg-black text-white hover:bg-gray-900 dark:bg-white dark:text-black dark:hover:bg-gray-100 transition rounded-full p-1.5 self-center"
 														type="button"
@@ -1322,7 +1322,7 @@
 													>
 														<Headphone className="size-5" />
 													</button>
-												</Tooltip>
+												</Tooltip> -->
 											</div>
 										{:else}
 											<div class=" flex items-center">
