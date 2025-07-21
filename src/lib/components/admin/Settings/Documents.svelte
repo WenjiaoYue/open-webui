@@ -180,7 +180,7 @@
 		if (!RAGConfig.BYPASS_EMBEDDING_AND_RETRIEVAL) {
 			await embeddingModelUpdateHandler();
 
-			if (RAGConfig.ENABLE_RAG_HYBRID_SEARCH) {
+			if (RAGConfig.ENABLE_RAG_HYBRID_SEARCH && rerankingModel !== "") {
 				await rerankingModelUpdateHandler();
 			}
 		}
@@ -193,7 +193,7 @@
 		const embeddingConfig = await getEmbeddingConfig(localStorage.token);
 
 		if (embeddingConfig) {
-			embeddingEngine = embeddingConfig.embedding_engine;
+			embeddingEngine = 'openai';
 			embeddingModel = embeddingConfig.embedding_model;
 			embeddingBatchSize = embeddingConfig.embedding_batch_size ?? 1;
 
@@ -210,7 +210,6 @@
 
 		RAGConfig = await getRAGConfig(localStorage.token);
 		console.log('RAGConfig', RAGConfig);
-		
 	});
 </script>
 
@@ -270,76 +269,6 @@
 
 					<hr class=" border-gray-100 dark:border-gray-850 my-2" />
 
-					<div class="mb-2.5 flex flex-col w-full justify-between">
-						<div class="flex w-full justify-between">
-							<div class="self-center text-xs font-medium">
-								{$i18n.t('Content Extraction Engine')}
-							</div>
-							<div class="">
-								<select
-									class="dark:bg-gray-900 w-fit pr-8 rounded-sm px-2 text-xs bg-transparent outline-hidden text-right"
-									bind:value={RAGConfig.CONTENT_EXTRACTION_ENGINE}
-								>
-									<option value="">{$i18n.t('Default')}</option>
-									<!-- <option value="tika">{$i18n.t('Tika')}</option>
-									<option value="docling">{$i18n.t('Docling')}</option>
-									<option value="document_intelligence">{$i18n.t('Document Intelligence')}</option>
-									<option value="mistral_ocr">{$i18n.t('Mistral OCR')}</option> -->
-								</select>
-							</div>
-						</div>
-
-						{#if RAGConfig.CONTENT_EXTRACTION_ENGINE === ''}
-							<div class="flex w-full mt-1">
-								<div class="flex-1 flex justify-between">
-									<div class=" self-center text-xs font-medium">
-										{$i18n.t('PDF Extract Images (OCR)')}
-									</div>
-									<div class="flex items-center relative">
-										<Switch bind:state={RAGConfig.PDF_EXTRACT_IMAGES} />
-									</div>
-								</div>
-							</div>
-						{:else if RAGConfig.CONTENT_EXTRACTION_ENGINE === 'tika'}
-							<div class="flex w-full mt-1">
-								<div class="flex-1 mr-2">
-									<input
-										class="flex-1 w-full rounded-lg text-sm bg-transparent outline-hidden"
-										placeholder={$i18n.t('Enter Tika Server URL')}
-										bind:value={RAGConfig.TIKA_SERVER_URL}
-									/>
-								</div>
-							</div>
-						{:else if RAGConfig.CONTENT_EXTRACTION_ENGINE === 'docling'}
-							<div class="flex w-full mt-1">
-								<input
-									class="flex-1 w-full rounded-lg text-sm bg-transparent outline-hidden"
-									placeholder={$i18n.t('Enter Docling Server URL')}
-									bind:value={RAGConfig.DOCLING_SERVER_URL}
-								/>
-							</div>
-						{:else if RAGConfig.CONTENT_EXTRACTION_ENGINE === 'document_intelligence'}
-							<div class="my-0.5 flex gap-2 pr-2">
-								<input
-									class="flex-1 w-full rounded-lg text-sm bg-transparent outline-hidden"
-									placeholder={$i18n.t('Enter Document Intelligence Endpoint')}
-									bind:value={RAGConfig.DOCUMENT_INTELLIGENCE_ENDPOINT}
-								/>
-								<SensitiveInput
-									placeholder={$i18n.t('Enter Document Intelligence Key')}
-									bind:value={RAGConfig.DOCUMENT_INTELLIGENCE_KEY}
-								/>
-							</div>
-						{:else if RAGConfig.CONTENT_EXTRACTION_ENGINE === 'mistral_ocr'}
-							<div class="my-0.5 flex gap-2 pr-2">
-								<SensitiveInput
-									placeholder={$i18n.t('Enter Mistral API Key')}
-									bind:value={RAGConfig.MISTRAL_OCR_API_KEY}
-								/>
-							</div>
-						{/if}
-					</div>
-
 					<div class="  mb-2.5 flex w-full justify-between">
 						<div class=" self-center text-xs font-medium">
 							<Tooltip content={$i18n.t('Full Context Mode')} placement="top-start">
@@ -364,15 +293,14 @@
 					{#if !RAGConfig.BYPASS_EMBEDDING_AND_RETRIEVAL}
 						<div class="  mb-2.5 flex w-full justify-between">
 							<div class=" self-center text-xs font-medium">{$i18n.t('Text Splitter')}</div>
-							<div class="flex items-center relative">
+							<!-- <div class="flex items-center relative">
 								<select
 									class="dark:bg-gray-900 w-fit pr-8 rounded-sm px-2 text-xs bg-transparent outline-hidden text-right"
 									bind:value={RAGConfig.TEXT_SPLITTER}
 								>
 									<option value="">{$i18n.t('Default')} ({$i18n.t('Character')})</option>
-									<!-- <option value="token">{$i18n.t('Token')} ({$i18n.t('Tiktoken')})</option> -->
 								</select>
-							</div>
+							</div> -->
 						</div>
 
 						<div class="  mb-2.5 flex w-full justify-between">
@@ -426,26 +354,9 @@
 									{$i18n.t('Embedding Model Engine')}
 								</div>
 								<div class="flex items-center relative">
-									<select
-										class="dark:bg-gray-900 w-fit pr-8 rounded-sm px-2 p-1 text-xs bg-transparent outline-hidden text-right"
-										bind:value={embeddingEngine}
-										placeholder="Select an embedding model engine"
-										on:change={(e) => {
-											if (e.target.value === 'ollama') {
-												embeddingModel = '';
-											} 
-											else if (e.target.value === 'openai') {
-												embeddingModel = 'text-embedding-3-small';
-											} 
-											else if (e.target.value === '') {
-												embeddingModel = 'sentence-transformers/all-MiniLM-L6-v2';
-											}
-										}}
+									<span class="flex-1 w-full rounded-lg text-xs bg-transparent outline-hidden"
+										>{$i18n.t('OpenAI')}</span
 									>
-										<option value="">{$i18n.t('Default (SentenceTransformers)')}</option>
-										<!-- <option value="ollama">{$i18n.t('Ollama')}</option> -->
-										<option value="openai">{$i18n.t('OpenAI')}</option>
-									</select>
 								</div>
 							</div>
 
@@ -633,21 +544,9 @@
 											{$i18n.t('Reranking Engine')}
 										</div>
 										<div class="flex items-center relative">
-											<select
-												class="dark:bg-gray-900 w-fit pr-8 rounded-sm px-2 p-1 text-xs bg-transparent outline-hidden text-right"
-												bind:value={RAGConfig.RAG_RERANKING_ENGINE}
-												placeholder="Select a reranking model engine"
-												on:change={(e) => {
-													if (e.target.value === 'external') {
-														RAGConfig.RAG_RERANKING_MODEL = '';
-													} else if (e.target.value === '') {
-														RAGConfig.RAG_RERANKING_MODEL = 'BAAI/bge-reranker-v2-m3';
-													}
-												}}
+											<span class="flex-1 w-full rounded-lg text-xs bg-transparent outline-hidden"
+												>{$i18n.t('External')}</span
 											>
-												<option value="">{$i18n.t('Default (SentenceTransformers)')}</option>
-												<option value="external">{$i18n.t('External')}</option>
-											</select>
 										</div>
 									</div>
 
