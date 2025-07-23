@@ -1,4 +1,3 @@
-import { APP_NAME } from '$lib/constants';
 import { type Writable, writable } from 'svelte/store';
 import type { ModelConfig } from '$lib/apis';
 import type { Banner } from '$lib/types';
@@ -7,7 +6,8 @@ import type { Socket } from 'socket.io-client';
 import emojiShortCodes from '$lib/emoji-shortcodes.json';
 
 // Backend
-export const WEBUI_NAME = writable(APP_NAME);
+export const WEBUI_NAME = writable("OPEA");
+export const PROJECT_IMG = writable("/Intel.png");
 export const config: Writable<Config | undefined> = writable(undefined);
 export const user: Writable<SessionUser | undefined> = writable(undefined);
 

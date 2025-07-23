@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { toast } from 'svelte-sonner';
 	import { v4 as uuidv4 } from 'uuid';
+	import { PROJECT_IMG } from '$lib/stores';
 
 	import { goto } from '$app/navigation';
 	import {
@@ -528,7 +529,7 @@
 					<div class="self-center mx-1.5">
 						<img
 							crossorigin="anonymous"
-							src="{WEBUI_BASE_URL}/static/favicon.png"
+							src="{$PROJECT_IMG}"
 							class=" size-5 -translate-x-1.5 rounded-full"
 							alt="logo"
 						/>

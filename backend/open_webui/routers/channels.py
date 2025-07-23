@@ -303,7 +303,7 @@ async def post_new_message(
 
             background_tasks.add_task(
                 send_notification,
-                request.app.state.WEBUI_NAME,
+                request.app.state.config.PROJECT_NAME,
                 request.app.state.config.WEBUI_URL,
                 channel,
                 message,

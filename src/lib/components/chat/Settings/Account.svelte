@@ -246,7 +246,7 @@
 				</div>
 			</div>
 
-			{#if $config?.features?.enable_user_webhooks}
+			<!-- {#if $config?.features?.enable_user_webhooks}
 				<div class="pt-2">
 					<div class="flex flex-col w-full">
 						<div class=" mb-1 text-xs font-medium">{$i18n.t('Notification Webhook')}</div>
@@ -262,7 +262,7 @@
 						</div>
 					</div>
 				</div>
-			{/if}
+			{/if} -->
 		</div>
 
 		<div class="py-0.5">

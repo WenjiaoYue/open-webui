@@ -503,7 +503,7 @@ async def signup(request: Request, response: Response, form_data: SignupForm):
 
             if request.app.state.config.WEBHOOK_URL:
                 post_webhook(
-                    request.app.state.WEBUI_NAME,
+                    request.app.state.config.PROJECT_NAME,
                     request.app.state.config.WEBHOOK_URL,
                     WEBHOOK_MESSAGES.USER_SIGNUP(user.name),
                     {
@@ -665,6 +665,8 @@ async def get_admin_config(request: Request, user=Depends(get_admin_user)):
         "ENABLE_MESSAGE_RATING": request.app.state.config.ENABLE_MESSAGE_RATING,
         "ENABLE_CHANNELS": request.app.state.config.ENABLE_CHANNELS,
         "ENABLE_USER_WEBHOOKS": request.app.state.config.ENABLE_USER_WEBHOOKS,
+        "PROJECT_NAME": request.app.state.config.PROJECT_NAME,
+        "PROJECT_IMG_URL": request.app.state.config.PROJECT_IMG_URL,
     }
 
 
@@ -681,6 +683,9 @@ class AdminConfig(BaseModel):
     ENABLE_MESSAGE_RATING: bool
     ENABLE_CHANNELS: bool
     ENABLE_USER_WEBHOOKS: bool
+    PROJECT_NAME: str
+    PROJECT_IMG_URL: str
+
 
 
 @router.post("/admin/config")
@@ -717,6 +722,9 @@ async def update_admin_config(
 
     request.app.state.config.ENABLE_USER_WEBHOOKS = form_data.ENABLE_USER_WEBHOOKS
 
+    request.app.state.config.PROJECT_NAME = form_data.PROJECT_NAME
+    request.app.state.config.PROJECT_IMG_URL = form_data.PROJECT_IMG_URL
+
     return {
         "SHOW_ADMIN_DETAILS": request.app.state.config.SHOW_ADMIN_DETAILS,
         "WEBUI_URL": request.app.state.config.WEBUI_URL,
@@ -730,6 +738,8 @@ async def update_admin_config(
         "ENABLE_COMMUNITY_SHARING": request.app.state.config.ENABLE_COMMUNITY_SHARING,
         "ENABLE_MESSAGE_RATING": request.app.state.config.ENABLE_MESSAGE_RATING,
         "ENABLE_USER_WEBHOOKS": request.app.state.config.ENABLE_USER_WEBHOOKS,
+        "PROJECT_NAME": request.app.state.config.PROJECT_NAME,
+        "PROJECT_IMG_URL": request.app.state.config.PROJECT_IMG_URL,
     }
 
 

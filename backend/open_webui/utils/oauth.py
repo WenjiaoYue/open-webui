@@ -37,7 +37,6 @@ from open_webui.config import (
 )
 from open_webui.constants import ERROR_MESSAGES, WEBHOOK_MESSAGES
 from open_webui.env import (
-    WEBUI_NAME,
     WEBUI_AUTH_COOKIE_SAME_SITE,
     WEBUI_AUTH_COOKIE_SECURE,
 )
@@ -389,7 +388,7 @@ class OAuthManager:
 
                 if auth_manager_config.WEBHOOK_URL:
                     post_webhook(
-                        WEBUI_NAME,
+                        request.app.state.config.PROJECT_NAME,
                         auth_manager_config.WEBHOOK_URL,
                         WEBHOOK_MESSAGES.USER_SIGNUP(user.name),
                         {

@@ -252,12 +252,13 @@ from open_webui.config import (
     UPLOAD_DIR,
     # WebUI
     WEBUI_AUTH,
-    WEBUI_NAME,
     WEBUI_BANNERS,
     WEBHOOK_URL,
     ADMIN_EMAIL,
     SHOW_ADMIN_DETAILS,
     JWT_EXPIRES_IN,
+    PROJECT_NAME,
+    PROJECT_IMG_URL,
     ENABLE_SIGNUP,
     ENABLE_LOGIN_FORM,
     ENABLE_API_KEY,
@@ -455,7 +456,6 @@ app.state.config = AppConfig(
     redis_sentinels=get_sentinels_from_env(REDIS_SENTINEL_HOSTS, REDIS_SENTINEL_PORT),
 )
 
-app.state.WEBUI_NAME = WEBUI_NAME
 app.state.LICENSE_METADATA = None
 
 
@@ -531,6 +531,9 @@ app.state.config.ENABLE_API_KEY_ENDPOINT_RESTRICTIONS = (
 app.state.config.API_KEY_ALLOWED_ENDPOINTS = API_KEY_ALLOWED_ENDPOINTS
 
 app.state.config.JWT_EXPIRES_IN = JWT_EXPIRES_IN
+
+app.state.config.PROJECT_NAME = PROJECT_NAME
+app.state.config.PROJECT_IMG_URL = PROJECT_IMG_URL
 
 app.state.config.SHOW_ADMIN_DETAILS = SHOW_ADMIN_DETAILS
 app.state.config.ADMIN_EMAIL = ADMIN_EMAIL
@@ -1274,7 +1277,8 @@ async def get_app_config(request: Request):
     return {
         **({"onboarding": True} if onboarding else {}),
         "status": True,
-        "name": app.state.WEBUI_NAME,
+        "name": app.state.config.PROJECT_NAME,
+        "project_img_url": app.state.config.PROJECT_IMG_URL,
         "version": VERSION,
         "default_locale": str(DEFAULT_LOCALE),
         "oauth": {
@@ -1445,8 +1449,8 @@ async def get_manifest_json():
         return requests.get(app.state.EXTERNAL_PWA_MANIFEST_URL).json()
     else:
         return {
-            "name": app.state.WEBUI_NAME,
-            "short_name": app.state.WEBUI_NAME,
+            "name": app.state.config.PROJECT_NAME,
+            "short_name": app.state.config.PROJECT_NAME,
             "description": "Open WebUI is an open, extensible, user-friendly interface for AI that adapts to your workflow.",
             "start_url": "/",
             "display": "standalone",
@@ -1473,8 +1477,8 @@ async def get_manifest_json():
 async def get_opensearch_xml():
     xml_content = rf"""
     <OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/" xmlns:moz="http://www.mozilla.org/2006/browser/search/">
-    <ShortName>{app.state.WEBUI_NAME}</ShortName>
-    <Description>Search {app.state.WEBUI_NAME}</Description>
+    <ShortName>{app.state.config.PROJECT_NAME}</ShortName>
+    <Description>Search {app.state.config.PROJECT_NAME}</Description>
     <InputEncoding>UTF-8</InputEncoding>
     <Image width="16" height="16" type="image/x-icon">{app.state.config.WEBUI_URL}/static/favicon.png</Image>
     <Url type="text/html" method="get" template="{app.state.config.WEBUI_URL}/?q={"{searchTerms}"}"/>

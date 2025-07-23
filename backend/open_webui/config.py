@@ -26,7 +26,6 @@ from open_webui.env import (
     OPEN_WEBUI_DIR,
     WEBUI_AUTH,
     WEBUI_FAVICON_URL,
-    WEBUI_NAME,
     log,
 )
 from open_webui.internal.db import Base, get_db
@@ -326,6 +325,14 @@ API_KEY_ALLOWED_ENDPOINTS = PersistentConfig(
     os.environ.get("API_KEY_ALLOWED_ENDPOINTS", ""),
 )
 
+
+PROJECT_NAME = PersistentConfig(
+    "PROJECT_NAME", "auth.project_name", os.environ.get("PROJECT_NAME", "OPEA")
+)
+
+PROJECT_IMG_URL = PersistentConfig(
+    "PROJECT_IMG_URL", "auth.project_img_url", os.environ.get("PROJECT_IMG_URL", "/Intel.png")
+)
 
 JWT_EXPIRES_IN = PersistentConfig(
     "JWT_EXPIRES_IN", "auth.jwt_expiry", os.environ.get("JWT_EXPIRES_IN", "-1")
@@ -723,7 +730,6 @@ if CUSTOM_NAME:
                         r.raw.decode_content = True
                         shutil.copyfileobj(r.raw, f)
 
-            WEBUI_NAME = data["name"]
     except Exception as e:
         log.exception(e)
         pass

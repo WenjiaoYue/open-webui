@@ -26,7 +26,10 @@
 		isLastActiveTab,
 		isApp,
 		appInfo,
-		toolServers
+		toolServers,
+
+		PROJECT_IMG
+
 	} from '$lib/stores';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -506,6 +509,8 @@
 		let backendConfig = null;
 		try {
 			backendConfig = await getBackendConfig();
+			console.log('backendConfig', backendConfig);
+			
 			console.log('Backend config:', backendConfig);
 		} catch (error) {
 			console.error('Error loading backend config:', error);
@@ -529,6 +534,7 @@
 			// Save Backend Status to Store
 			await config.set(backendConfig);
 			await WEBUI_NAME.set(backendConfig.name);
+			await PROJECT_IMG.set(backendConfig.PROJECT_IMG);
 
 			if ($config) {
 				await setupSocket($config.features?.enable_websocket ?? true);
@@ -607,7 +613,7 @@
 
 <svelte:head>
 	<title>{$WEBUI_NAME}</title>
-	<link crossorigin="anonymous" rel="icon" href="{WEBUI_BASE_URL}/static/favicon.png" />
+	<link crossorigin="anonymous" rel="icon" href="{$PROJECT_IMG}" />
 
 	<!-- rosepine themes have been disabled as it's not up to date with our latest version. -->
 	<!-- feel free to make a PR to fix if anyone wants to see it return -->

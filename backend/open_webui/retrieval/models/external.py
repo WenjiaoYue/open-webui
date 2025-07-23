@@ -42,8 +42,8 @@ class ExternalReranker(BaseReranker):
             headers["Authorization"] = f"Bearer {self.api_key}"
 
         try:
-            log.debug(f"ExternalReranker:predict:query {query}")
-            log.debug(f"ExternalReranker:predict:payload {payload}")
+            log.info(f"ExternalReranker:predict:query {query}")
+            log.info(f"ExternalReranker:predict:payload {payload}")
             r = requests.post(
                 self.url,
                 headers=headers,
@@ -55,6 +55,7 @@ class ExternalReranker(BaseReranker):
             if isinstance(data, list):
                 # The response is a list of dicts: [{"index": 0, "score": 0.9}, {"index": 1, "score": 0.1}]
                 sorted_results = sorted(data, key=lambda x: x["index"])
+                log.info(sorted_results)
                 return [result["score"] for result in sorted_results]
             else:
                 log.error(f"Unexpected response format from reranker. Expected a list, got {type(data)}")
