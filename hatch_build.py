@@ -10,12 +10,15 @@ from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 class CustomBuildHook(BuildHookInterface):
     def initialize(self, version, build_data):
         super().initialize(version, build_data)
-        stderr.write(">>> Building Open Webui frontend\n")
+        stderr.write(">>> Building frontend\n")
         npm = shutil.which("npm")
         if npm is None:
             raise RuntimeError(
-                "NodeJS `npm` is required for building Open Webui but it was not found"
+                "NodeJS `npm` is required for building UI but it was not found"
             )
+        stderr.write("### Installing onnxruntime-node\n")
+        subprocess.run([npm, "install", "onnxruntime-node", "--onnxruntime-node-install-cuda=skip"], check=True)  # noqa: S603
+        
         stderr.write("### npm install\n")
         subprocess.run([npm, "install"], check=True)  # noqa: S603
         stderr.write("\n### npm run build\n")

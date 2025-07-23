@@ -796,6 +796,32 @@ index 0b94c4787..511688f8a 100644
  			// Visit auth page
  			cy.visit('/auth');
  			// Fill out the form
+diff --git a/hatch_build.py b/hatch_build.py
+index 8ddaf0749..4a693aec6 100644
+--- a/hatch_build.py
++++ b/hatch_build.py
+@@ -10,14 +10,17 @@ from hatchling.builders.hooks.plugin.interface import BuildHookInterface
+ class CustomBuildHook(BuildHookInterface):
+     def initialize(self, version, build_data):
+         super().initialize(version, build_data)
+-        stderr.write(">>> Building Open Webui frontend\n")
++        stderr.write(">>> Building frontend\n")
+         npm = shutil.which("npm")
+         if npm is None:
+             raise RuntimeError(
+-                "NodeJS `npm` is required for building Open Webui but it was not found"
++                "NodeJS `npm` is required for building UI but it was not found"
+             )
++        stderr.write("### Installing onnxruntime-node\n")
++        subprocess.run([npm, "install", "onnxruntime-node", "--onnxruntime-node-install-cuda=skip"], check=True)  # noqa: S603
++        
+         stderr.write("### npm install\n")
+         subprocess.run([npm, "install"], check=True)  # noqa: S603
+         stderr.write("\n### npm run build\n")
+         os.environ["APP_BUILD_HASH"] = version
+-        subprocess.run([npm, "run", "build"], check=True)  # noqa: S603
++        subprocess.run([npm, "run", "build"], check=True)  # noqa: S603
+\ No newline at end of file
 diff --git a/package-lock.json b/package-lock.json
 index c4f6948bd..668dd0ed0 100644
 --- a/package-lock.json
