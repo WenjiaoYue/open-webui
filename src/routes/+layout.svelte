@@ -27,7 +27,6 @@
 		isApp,
 		appInfo,
 		toolServers,
-
 		PROJECT_IMG
 
 	} from '$lib/stores';
@@ -534,7 +533,7 @@
 			// Save Backend Status to Store
 			await config.set(backendConfig);
 			await WEBUI_NAME.set(backendConfig.name);
-			await PROJECT_IMG.set(backendConfig.PROJECT_IMG);
+			await PROJECT_IMG.set(backendConfig.project_img_url);
 
 			if ($config) {
 				await setupSocket($config.features?.enable_websocket ?? true);
