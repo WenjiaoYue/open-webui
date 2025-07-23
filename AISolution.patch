@@ -1,5 +1,8 @@
+diff --git a/AISolution.patch b/AISolution.patch
+new file mode 100644
+index 000000000..e69de29bb
 diff --git a/backend/open_webui/config.py b/backend/open_webui/config.py
-index 3b40977f2..1c71c1ef9 100644
+index 3b40977f2..fbcace207 100644
 --- a/backend/open_webui/config.py
 +++ b/backend/open_webui/config.py
 @@ -26,7 +26,6 @@ from open_webui.env import (
@@ -19,7 +22,7 @@ index 3b40977f2..1c71c1ef9 100644
 +)
 +
 +PROJECT_IMG_URL = PersistentConfig(
-+    "PROJECT_IMG_URL", "auth.project_img_url", os.environ.get("PROJECT_IMG_URL", "/Intel.png")
++    "PROJECT_IMG_URL", "auth.project_img_url", os.environ.get("PROJECT_IMG_URL", "/user.png")
 +)
 +
  JWT_EXPIRES_IN = PersistentConfig(
@@ -3708,7 +3711,7 @@ index f775849a4..9b51d6591 100644
  	"Prompt (e.g. Tell me a fun fact about the Roman Empire)": "提示词（例如：给我讲一个关于罗马帝国的趣事。）",
  	"Prompt Autocompletion": "提示词自动补全",
 diff --git a/src/lib/stores/index.ts b/src/lib/stores/index.ts
-index 87f48c72c..f79a53c6f 100644
+index 87f48c72c..6311928e4 100644
 --- a/src/lib/stores/index.ts
 +++ b/src/lib/stores/index.ts
 @@ -1,4 +1,3 @@
@@ -3722,7 +3725,7 @@ index 87f48c72c..f79a53c6f 100644
  // Backend
 -export const WEBUI_NAME = writable(APP_NAME);
 +export const WEBUI_NAME = writable("OPEA");
-+export const PROJECT_IMG = writable("/Intel.png");
++export const PROJECT_IMG = writable("/user.png");
  export const config: Writable<Config | undefined> = writable(undefined);
  export const user: Writable<SessionUser | undefined> = writable(undefined);
  
@@ -3898,7 +3901,3 @@ index 6f349b791..c32374470 100644
  
  	<!-- rosepine themes have been disabled as it's not up to date with our latest version. -->
  	<!-- feel free to make a PR to fix if anyone wants to see it return -->
-diff --git a/static/Intel.png b/static/Intel.png
-new file mode 100644
-index 000000000..bab0769c0
-Binary files /dev/null and b/static/Intel.png differ
