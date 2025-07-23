@@ -1,0 +1,3904 @@
+diff --git a/backend/open_webui/config.py b/backend/open_webui/config.py
+index 3b40977f2..1c71c1ef9 100644
+--- a/backend/open_webui/config.py
++++ b/backend/open_webui/config.py
+@@ -26,7 +26,6 @@ from open_webui.env import (
+     OPEN_WEBUI_DIR,
+     WEBUI_AUTH,
+     WEBUI_FAVICON_URL,
+-    WEBUI_NAME,
+     log,
+ )
+ from open_webui.internal.db import Base, get_db
+@@ -327,6 +326,14 @@ API_KEY_ALLOWED_ENDPOINTS = PersistentConfig(
+ )
+ 
+ 
++PROJECT_NAME = PersistentConfig(
++    "PROJECT_NAME", "auth.project_name", os.environ.get("PROJECT_NAME", "OPEA")
++)
++
++PROJECT_IMG_URL = PersistentConfig(
++    "PROJECT_IMG_URL", "auth.project_img_url", os.environ.get("PROJECT_IMG_URL", "/Intel.png")
++)
++
+ JWT_EXPIRES_IN = PersistentConfig(
+     "JWT_EXPIRES_IN", "auth.jwt_expiry", os.environ.get("JWT_EXPIRES_IN", "-1")
+ )
+@@ -723,7 +730,6 @@ if CUSTOM_NAME:
+                         r.raw.decode_content = True
+                         shutil.copyfileobj(r.raw, f)
+ 
+-            WEBUI_NAME = data["name"]
+     except Exception as e:
+         log.exception(e)
+         pass
+@@ -1818,6 +1824,12 @@ RAG_RELEVANCE_THRESHOLD = PersistentConfig(
+     float(os.environ.get("RAG_RELEVANCE_THRESHOLD", "0.0")),
+ )
+ 
++RAG_BM25_WEIGHT = PersistentConfig(
++    "RAG_BM25_WEIGHT",
++    "rag.bm25_weight",
++    float(os.environ.get("RAG_BM25_WEIGHT", "0.5")),
++)
++
+ ENABLE_RAG_HYBRID_SEARCH = PersistentConfig(
+     "ENABLE_RAG_HYBRID_SEARCH",
+     "rag.enable_hybrid_search",
+@@ -1895,6 +1907,12 @@ RAG_EMBEDDING_PREFIX_FIELD_NAME = os.environ.get(
+     "RAG_EMBEDDING_PREFIX_FIELD_NAME", None
+ )
+ 
++RAG_RERANKING_ENGINE = PersistentConfig(
++    "RAG_RERANKING_ENGINE",
++    "rag.reranking_engine",
++    os.environ.get("RAG_RERANKING_ENGINE", ""),
++)
++
+ RAG_RERANKING_MODEL = PersistentConfig(
+     "RAG_RERANKING_MODEL",
+     "rag.reranking_model",
+@@ -1912,6 +1930,17 @@ RAG_RERANKING_MODEL_TRUST_REMOTE_CODE = (
+     os.environ.get("RAG_RERANKING_MODEL_TRUST_REMOTE_CODE", "True").lower() == "true"
+ )
+ 
++RAG_EXTERNAL_RERANKER_URL = PersistentConfig(
++    "RAG_EXTERNAL_RERANKER_URL",
++    "rag.external_reranker_url",
++    os.environ.get("RAG_EXTERNAL_RERANKER_URL", ""),
++)
++
++RAG_EXTERNAL_RERANKER_API_KEY = PersistentConfig(
++    "RAG_EXTERNAL_RERANKER_API_KEY",
++    "rag.external_reranker_api_key",
++    os.environ.get("RAG_EXTERNAL_RERANKER_API_KEY", ""),
++)
+ 
+ RAG_TEXT_SPLITTER = PersistentConfig(
+     "RAG_TEXT_SPLITTER",
+diff --git a/backend/open_webui/env.py b/backend/open_webui/env.py
+index c9d71a4a0..6033496ea 100644
+--- a/backend/open_webui/env.py
++++ b/backend/open_webui/env.py
+@@ -105,10 +105,6 @@ for source in log_sources:
+ 
+ log.setLevel(SRC_LOG_LEVELS["CONFIG"])
+ 
+-WEBUI_NAME = os.environ.get("WEBUI_NAME", "Open WebUI")
+-if WEBUI_NAME != "Open WebUI":
+-    WEBUI_NAME += " (Open WebUI)"
+-
+ WEBUI_FAVICON_URL = "https://openwebui.com/favicon.png"
+ 
+ TRUSTED_SIGNATURE_KEY = os.environ.get("TRUSTED_SIGNATURE_KEY", "")
+diff --git a/backend/open_webui/main.py b/backend/open_webui/main.py
+index 56ea17fa1..f90f8dd90 100644
+--- a/backend/open_webui/main.py
++++ b/backend/open_webui/main.py
+@@ -178,12 +178,18 @@ from open_webui.config import (
+     RAG_EMBEDDING_MODEL,
+     RAG_EMBEDDING_MODEL_AUTO_UPDATE,
+     RAG_EMBEDDING_MODEL_TRUST_REMOTE_CODE,
++    RAG_RERANKING_ENGINE,
+     RAG_RERANKING_MODEL,
++    RAG_EXTERNAL_RERANKER_URL,
++    RAG_EXTERNAL_RERANKER_API_KEY,
+     RAG_RERANKING_MODEL_AUTO_UPDATE,
+     RAG_RERANKING_MODEL_TRUST_REMOTE_CODE,
+     RAG_EMBEDDING_ENGINE,
+     RAG_EMBEDDING_BATCH_SIZE,
++    RAG_TOP_K,
++    RAG_TOP_K_RERANKER,
+     RAG_RELEVANCE_THRESHOLD,
++    RAG_BM25_WEIGHT,
+     RAG_FILE_MAX_COUNT,
+     RAG_FILE_MAX_SIZE,
+     RAG_OPENAI_API_BASE_URL,
+@@ -198,8 +204,6 @@ from open_webui.config import (
+     DOCUMENT_INTELLIGENCE_ENDPOINT,
+     DOCUMENT_INTELLIGENCE_KEY,
+     MISTRAL_OCR_API_KEY,
+-    RAG_TOP_K,
+-    RAG_TOP_K_RERANKER,
+     RAG_TEXT_SPLITTER,
+     TIKTOKEN_ENCODING_NAME,
+     PDF_EXTRACT_IMAGES,
+@@ -248,12 +252,13 @@ from open_webui.config import (
+     UPLOAD_DIR,
+     # WebUI
+     WEBUI_AUTH,
+-    WEBUI_NAME,
+     WEBUI_BANNERS,
+     WEBHOOK_URL,
+     ADMIN_EMAIL,
+     SHOW_ADMIN_DETAILS,
+     JWT_EXPIRES_IN,
++    PROJECT_NAME,
++    PROJECT_IMG_URL,
+     ENABLE_SIGNUP,
+     ENABLE_LOGIN_FORM,
+     ENABLE_API_KEY,
+@@ -451,7 +456,6 @@ app.state.config = AppConfig(
+     redis_sentinels=get_sentinels_from_env(REDIS_SENTINEL_HOSTS, REDIS_SENTINEL_PORT),
+ )
+ 
+-app.state.WEBUI_NAME = WEBUI_NAME
+ app.state.LICENSE_METADATA = None
+ 
+ 
+@@ -528,6 +532,9 @@ app.state.config.API_KEY_ALLOWED_ENDPOINTS = API_KEY_ALLOWED_ENDPOINTS
+ 
+ app.state.config.JWT_EXPIRES_IN = JWT_EXPIRES_IN
+ 
++app.state.config.PROJECT_NAME = PROJECT_NAME
++app.state.config.PROJECT_IMG_URL = PROJECT_IMG_URL
++
+ app.state.config.SHOW_ADMIN_DETAILS = SHOW_ADMIN_DETAILS
+ app.state.config.ADMIN_EMAIL = ADMIN_EMAIL
+ 
+@@ -592,6 +599,7 @@ app.state.FUNCTIONS = {}
+ app.state.config.TOP_K = RAG_TOP_K
+ app.state.config.TOP_K_RERANKER = RAG_TOP_K_RERANKER
+ app.state.config.RELEVANCE_THRESHOLD = RAG_RELEVANCE_THRESHOLD
++app.state.config.BM25_WEIGHT = RAG_BM25_WEIGHT
+ app.state.config.FILE_MAX_SIZE = RAG_FILE_MAX_SIZE
+ app.state.config.FILE_MAX_COUNT = RAG_FILE_MAX_COUNT
+ 
+@@ -617,7 +625,11 @@ app.state.config.CHUNK_OVERLAP = CHUNK_OVERLAP
+ app.state.config.RAG_EMBEDDING_ENGINE = RAG_EMBEDDING_ENGINE
+ app.state.config.RAG_EMBEDDING_MODEL = RAG_EMBEDDING_MODEL
+ app.state.config.RAG_EMBEDDING_BATCH_SIZE = RAG_EMBEDDING_BATCH_SIZE
++
++app.state.config.RAG_RERANKING_ENGINE = RAG_RERANKING_ENGINE
+ app.state.config.RAG_RERANKING_MODEL = RAG_RERANKING_MODEL
++app.state.config.RAG_EXTERNAL_RERANKER_URL = RAG_EXTERNAL_RERANKER_URL
++app.state.config.RAG_EXTERNAL_RERANKER_API_KEY = RAG_EXTERNAL_RERANKER_API_KEY
+ app.state.config.RAG_TEMPLATE = RAG_TEMPLATE
+ 
+ app.state.config.RAG_OPENAI_API_BASE_URL = RAG_OPENAI_API_BASE_URL
+@@ -691,7 +703,10 @@ try:
+     )
+ 
+     app.state.rf = get_rf(
++        app.state.config.RAG_RERANKING_ENGINE,
+         app.state.config.RAG_RERANKING_MODEL,
++        app.state.config.RAG_EXTERNAL_RERANKER_URL,
++        app.state.config.RAG_EXTERNAL_RERANKER_API_KEY,
+         RAG_RERANKING_MODEL_AUTO_UPDATE,
+     )
+ except Exception as e:
+@@ -1262,7 +1277,8 @@ async def get_app_config(request: Request):
+     return {
+         **({"onboarding": True} if onboarding else {}),
+         "status": True,
+-        "name": app.state.WEBUI_NAME,
++        "name": app.state.config.PROJECT_NAME,
++        "project_img_url": app.state.config.PROJECT_IMG_URL,
+         "version": VERSION,
+         "default_locale": str(DEFAULT_LOCALE),
+         "oauth": {
+@@ -1433,8 +1449,8 @@ async def get_manifest_json():
+         return requests.get(app.state.EXTERNAL_PWA_MANIFEST_URL).json()
+     else:
+         return {
+-            "name": app.state.WEBUI_NAME,
+-            "short_name": app.state.WEBUI_NAME,
++            "name": app.state.config.PROJECT_NAME,
++            "short_name": app.state.config.PROJECT_NAME,
+             "description": "Open WebUI is an open, extensible, user-friendly interface for AI that adapts to your workflow.",
+             "start_url": "/",
+             "display": "standalone",
+@@ -1461,8 +1477,8 @@ async def get_manifest_json():
+ async def get_opensearch_xml():
+     xml_content = rf"""
+     <OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/" xmlns:moz="http://www.mozilla.org/2006/browser/search/">
+-    <ShortName>{app.state.WEBUI_NAME}</ShortName>
+-    <Description>Search {app.state.WEBUI_NAME}</Description>
++    <ShortName>{app.state.config.PROJECT_NAME}</ShortName>
++    <Description>Search {app.state.config.PROJECT_NAME}</Description>
+     <InputEncoding>UTF-8</InputEncoding>
+     <Image width="16" height="16" type="image/x-icon">{app.state.config.WEBUI_URL}/static/favicon.png</Image>
+     <Url type="text/html" method="get" template="{app.state.config.WEBUI_URL}/?q={"{searchTerms}"}"/>
+diff --git a/backend/open_webui/retrieval/models/base_reranker.py b/backend/open_webui/retrieval/models/base_reranker.py
+new file mode 100644
+index 000000000..b5c407648
+--- /dev/null
++++ b/backend/open_webui/retrieval/models/base_reranker.py
+@@ -0,0 +1,8 @@
++from abc import ABC, abstractmethod
++from typing import Optional, List, Tuple
++
++
++class BaseReranker(ABC):
++    @abstractmethod
++    def predict(self, sentences: List[Tuple[str, str]]) -> Optional[List[float]]:
++        pass
+\ No newline at end of file
+diff --git a/backend/open_webui/retrieval/models/colbert.py b/backend/open_webui/retrieval/models/colbert.py
+index 5b7499fd1..15b4f4429 100644
+--- a/backend/open_webui/retrieval/models/colbert.py
++++ b/backend/open_webui/retrieval/models/colbert.py
+@@ -7,11 +7,14 @@ from colbert.modeling.checkpoint import Checkpoint
+ 
+ from open_webui.env import SRC_LOG_LEVELS
+ 
++from open_webui.retrieval.models.base_reranker import BaseReranker
++
++
+ log = logging.getLogger(__name__)
+ log.setLevel(SRC_LOG_LEVELS["RAG"])
+ 
+ 
+-class ColBERT:
++class ColBERT(BaseReranker):
+     def __init__(self, name, **kwargs) -> None:
+         log.info("ColBERT: Loading model", name)
+         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+diff --git a/backend/open_webui/retrieval/models/external.py b/backend/open_webui/retrieval/models/external.py
+new file mode 100644
+index 000000000..e8dbeac24
+--- /dev/null
++++ b/backend/open_webui/retrieval/models/external.py
+@@ -0,0 +1,66 @@
++import logging
++import requests
++from typing import Optional, List, Tuple
++
++from open_webui.env import SRC_LOG_LEVELS
++from open_webui.retrieval.models.base_reranker import BaseReranker
++
++
++log = logging.getLogger(__name__)
++log.setLevel(SRC_LOG_LEVELS["RAG"])
++
++
++class ExternalReranker(BaseReranker):
++    def __init__(
++            self,
++            api_key: str,
++            url: str = "http://localhost:8080/rerank",
++            model: Optional[str] = None,
++    ):
++        self.api_key = api_key
++        self.url = url
++        # self.model is not needed for the TEI request payload but we store it in case.
++        self.model = model
++
++    def predict(self, sentences: List[Tuple[str, str]]) -> Optional[List[float]]:
++        if not sentences:
++            return []
++
++        query = sentences[0][0]
++        docs = [i[1] for i in sentences]
++
++        payload = {
++            "query": query,
++            "texts": docs,
++            "top_n": len(docs),
++        }
++
++        headers = {
++            "Content-Type": "application/json",
++        }
++        if self.api_key:
++            headers["Authorization"] = f"Bearer {self.api_key}"
++
++        try:
++            log.info(f"ExternalReranker:predict:query {query}")
++            log.info(f"ExternalReranker:predict:payload {payload}")
++            r = requests.post(
++                self.url,
++                headers=headers,
++                json=payload,
++            )
++            r.raise_for_status()
++            data = r.json()
++
++            if isinstance(data, list):
++                # The response is a list of dicts: [{"index": 0, "score": 0.9}, {"index": 1, "score": 0.1}]
++                sorted_results = sorted(data, key=lambda x: x["index"])
++                log.info(sorted_results)
++                return [result["score"] for result in sorted_results]
++            else:
++                log.error(f"Unexpected response format from reranker. Expected a list, got {type(data)}")
++                return None
++
++        except Exception as e:
++            log.exception(f"Error in external reranking: {e}")
++            return None
+diff --git a/backend/open_webui/retrieval/utils.py b/backend/open_webui/retrieval/utils.py
+index 2b23cad17..e26797d1b 100644
+--- a/backend/open_webui/retrieval/utils.py
++++ b/backend/open_webui/retrieval/utils.py
+@@ -116,6 +116,7 @@ def query_doc_with_hybrid_search(
+     reranking_function,
+     k_reranker: int,
+     r: float,
++    bm25_weight: float,
+ ) -> dict:
+     try:
+         log.debug(f"query_doc_with_hybrid_search:doc {collection_name}")
+@@ -131,9 +132,20 @@ def query_doc_with_hybrid_search(
+             top_k=k,
+         )
+ 
+-        ensemble_retriever = EnsembleRetriever(
+-            retrievers=[bm25_retriever, vector_search_retriever], weights=[0.5, 0.5]
+-        )
++        if bm25_weight <= 0:
++            ensemble_retriever = EnsembleRetriever(
++                retrievers=[vector_search_retriever], weights=[1.]
++            )
++        elif bm25_weight >= 1:
++            ensemble_retriever = EnsembleRetriever(
++                retrievers=[bm25_retriever], weights=[1.]
++            )
++        else:
++            ensemble_retriever = EnsembleRetriever(
++                retrievers=[bm25_retriever, vector_search_retriever],
++                weights=[bm25_weight, 1. - bm25_weight]
++            )
++
+         compressor = RerankCompressor(
+             embedding_function=embedding_function,
+             top_n=k_reranker,
+@@ -289,6 +301,7 @@ def query_collection_with_hybrid_search(
+     reranking_function,
+     k_reranker: int,
+     r: float,
++    bm25_weight: float,
+ ) -> dict:
+     results = []
+     error = False
+@@ -322,6 +335,7 @@ def query_collection_with_hybrid_search(
+                 reranking_function=reranking_function,
+                 k_reranker=k_reranker,
+                 r=r,
++                bm25_weight=bm25_weight,
+             )
+             return result, None
+         except Exception as e:
+@@ -409,6 +423,7 @@ def get_sources_from_files(
+     reranking_function,
+     k_reranker,
+     r,
++    bm25_weight,
+     hybrid_search,
+     full_context=False,
+ ):
+@@ -526,6 +541,7 @@ def get_sources_from_files(
+                                     reranking_function=reranking_function,
+                                     k_reranker=k_reranker,
+                                     r=r,
++                                    bm25_weight=bm25_weight,
+                                 )
+                             except Exception as e:
+                                 log.debug(
+@@ -794,7 +810,9 @@ class RerankCompressor(BaseDocumentCompressor):
+             )
+             scores = util.cos_sim(query_embedding, document_embedding)[0]
+ 
+-        docs_with_scores = list(zip(documents, scores.tolist()))
++        docs_with_scores = list(
++            zip(documents, scores.tolist() if not isinstance(scores, list) else scores)
++        )
+         if self.r_score:
+             docs_with_scores = [
+                 (d, s) for d, s in docs_with_scores if s >= self.r_score
+diff --git a/backend/open_webui/routers/auths.py b/backend/open_webui/routers/auths.py
+index 9c4d5cb9f..3c6bac225 100644
+--- a/backend/open_webui/routers/auths.py
++++ b/backend/open_webui/routers/auths.py
+@@ -503,7 +503,7 @@ async def signup(request: Request, response: Response, form_data: SignupForm):
+ 
+             if request.app.state.config.WEBHOOK_URL:
+                 post_webhook(
+-                    request.app.state.WEBUI_NAME,
++                    request.app.state.config.PROJECT_NAME,
+                     request.app.state.config.WEBHOOK_URL,
+                     WEBHOOK_MESSAGES.USER_SIGNUP(user.name),
+                     {
+@@ -665,6 +665,8 @@ async def get_admin_config(request: Request, user=Depends(get_admin_user)):
+         "ENABLE_MESSAGE_RATING": request.app.state.config.ENABLE_MESSAGE_RATING,
+         "ENABLE_CHANNELS": request.app.state.config.ENABLE_CHANNELS,
+         "ENABLE_USER_WEBHOOKS": request.app.state.config.ENABLE_USER_WEBHOOKS,
++        "PROJECT_NAME": request.app.state.config.PROJECT_NAME,
++        "PROJECT_IMG_URL": request.app.state.config.PROJECT_IMG_URL,
+     }
+ 
+ 
+@@ -681,6 +683,9 @@ class AdminConfig(BaseModel):
+     ENABLE_MESSAGE_RATING: bool
+     ENABLE_CHANNELS: bool
+     ENABLE_USER_WEBHOOKS: bool
++    PROJECT_NAME: str
++    PROJECT_IMG_URL: str
++
+ 
+ 
+ @router.post("/admin/config")
+@@ -717,6 +722,9 @@ async def update_admin_config(
+ 
+     request.app.state.config.ENABLE_USER_WEBHOOKS = form_data.ENABLE_USER_WEBHOOKS
+ 
++    request.app.state.config.PROJECT_NAME = form_data.PROJECT_NAME
++    request.app.state.config.PROJECT_IMG_URL = form_data.PROJECT_IMG_URL
++
+     return {
+         "SHOW_ADMIN_DETAILS": request.app.state.config.SHOW_ADMIN_DETAILS,
+         "WEBUI_URL": request.app.state.config.WEBUI_URL,
+@@ -730,6 +738,8 @@ async def update_admin_config(
+         "ENABLE_COMMUNITY_SHARING": request.app.state.config.ENABLE_COMMUNITY_SHARING,
+         "ENABLE_MESSAGE_RATING": request.app.state.config.ENABLE_MESSAGE_RATING,
+         "ENABLE_USER_WEBHOOKS": request.app.state.config.ENABLE_USER_WEBHOOKS,
++        "PROJECT_NAME": request.app.state.config.PROJECT_NAME,
++        "PROJECT_IMG_URL": request.app.state.config.PROJECT_IMG_URL,
+     }
+ 
+ 
+diff --git a/backend/open_webui/routers/channels.py b/backend/open_webui/routers/channels.py
+index 6da3f04ce..b330f8921 100644
+--- a/backend/open_webui/routers/channels.py
++++ b/backend/open_webui/routers/channels.py
+@@ -303,7 +303,7 @@ async def post_new_message(
+ 
+             background_tasks.add_task(
+                 send_notification,
+-                request.app.state.WEBUI_NAME,
++                request.app.state.config.PROJECT_NAME,
+                 request.app.state.config.WEBUI_URL,
+                 channel,
+                 message,
+diff --git a/backend/open_webui/routers/retrieval.py b/backend/open_webui/routers/retrieval.py
+index 13f012483..282cff7a3 100644
+--- a/backend/open_webui/routers/retrieval.py
++++ b/backend/open_webui/routers/retrieval.py
+@@ -125,7 +125,10 @@ def get_ef(
+ 
+ 
+ def get_rf(
++    engine: str = "",
+     reranking_model: Optional[str] = None,
++    external_reranker_url: str = "",
++    external_reranker_api_key: str = "",
+     auto_update: bool = False,
+ ):
+     rf = None
+@@ -143,17 +146,32 @@ def get_rf(
+                 log.error(f"ColBERT: {e}")
+                 raise Exception(ERROR_MESSAGES.DEFAULT(e))
+         else:
+-            import sentence_transformers
++            if engine == "external":
++                try:
++                    from open_webui.retrieval.models.external import ExternalReranker
+ 
+-            try:
+-                rf = sentence_transformers.CrossEncoder(
+-                    get_model_path(reranking_model, auto_update),
+-                    device=DEVICE_TYPE,
+-                    trust_remote_code=RAG_RERANKING_MODEL_TRUST_REMOTE_CODE,
+-                )
+-            except Exception as e:
+-                log.error(f"CrossEncoder: {e}")
+-                raise Exception(ERROR_MESSAGES.DEFAULT("CrossEncoder error"))
++                    rf = ExternalReranker(
++                        url=external_reranker_url,
++                        api_key=external_reranker_api_key,
++                        model=reranking_model,
++                    )
++                except Exception as e:
++                    log.error(f"ExternalReranking: {e}")
++                    raise Exception(ERROR_MESSAGES.DEFAULT(e))
++            else:
++                import sentence_transformers
++
++                try:
++                    rf = sentence_transformers.CrossEncoder(
++                        get_model_path(reranking_model, auto_update),
++                        device=DEVICE_TYPE,
++                        trust_remote_code=RAG_RERANKING_MODEL_TRUST_REMOTE_CODE,
++                        backend=SENTENCE_TRANSFORMERS_CROSS_ENCODER_BACKEND,
++                        model_kwargs=SENTENCE_TRANSFORMERS_CROSS_ENCODER_MODEL_KWARGS,
++                    )
++                except Exception as e:
++                    log.error(f"CrossEncoder: {e}")
++                    raise Exception(ERROR_MESSAGES.DEFAULT("CrossEncoder error"))
+     return rf
+ 
+ 
+@@ -211,12 +229,6 @@ async def get_embedding_config(request: Request, user=Depends(get_admin_user)):
+     }
+ 
+ 
+-@router.get("/reranking")
+-async def get_reraanking_config(request: Request, user=Depends(get_admin_user)):
+-    return {
+-        "status": True,
+-        "reranking_model": request.app.state.config.RAG_RERANKING_MODEL,
+-    }
+ 
+ 
+ class OpenAIConfigForm(BaseModel):
+@@ -313,39 +325,6 @@ async def update_embedding_config(
+         )
+ 
+ 
+-class RerankingModelUpdateForm(BaseModel):
+-    reranking_model: str
+-
+-
+-@router.post("/reranking/update")
+-async def update_reranking_config(
+-    request: Request, form_data: RerankingModelUpdateForm, user=Depends(get_admin_user)
+-):
+-    log.info(
+-        f"Updating reranking model: {request.app.state.config.RAG_RERANKING_MODEL} to {form_data.reranking_model}"
+-    )
+-    try:
+-        request.app.state.config.RAG_RERANKING_MODEL = form_data.reranking_model
+-
+-        try:
+-            request.app.state.rf = get_rf(
+-                request.app.state.config.RAG_RERANKING_MODEL,
+-                True,
+-            )
+-        except Exception as e:
+-            log.error(f"Error loading reranking model: {e}")
+-            request.app.state.config.ENABLE_RAG_HYBRID_SEARCH = False
+-
+-        return {
+-            "status": True,
+-            "reranking_model": request.app.state.config.RAG_RERANKING_MODEL,
+-        }
+-    except Exception as e:
+-        log.exception(f"Problem updating reranking model: {e}")
+-        raise HTTPException(
+-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+-            detail=ERROR_MESSAGES.DEFAULT(e),
+-        )
+ 
+ 
+ @router.get("/config")
+@@ -361,6 +340,7 @@ async def get_rag_config(request: Request, user=Depends(get_admin_user)):
+         "ENABLE_RAG_HYBRID_SEARCH": request.app.state.config.ENABLE_RAG_HYBRID_SEARCH,
+         "TOP_K_RERANKER": request.app.state.config.TOP_K_RERANKER,
+         "RELEVANCE_THRESHOLD": request.app.state.config.RELEVANCE_THRESHOLD,
++        "BM25_WEIGHT": request.app.state.config.BM25_WEIGHT,
+         # Content extraction settings
+         "CONTENT_EXTRACTION_ENGINE": request.app.state.config.CONTENT_EXTRACTION_ENGINE,
+         "PDF_EXTRACT_IMAGES": request.app.state.config.PDF_EXTRACT_IMAGES,
+@@ -369,6 +349,11 @@ async def get_rag_config(request: Request, user=Depends(get_admin_user)):
+         "DOCUMENT_INTELLIGENCE_ENDPOINT": request.app.state.config.DOCUMENT_INTELLIGENCE_ENDPOINT,
+         "DOCUMENT_INTELLIGENCE_KEY": request.app.state.config.DOCUMENT_INTELLIGENCE_KEY,
+         "MISTRAL_OCR_API_KEY": request.app.state.config.MISTRAL_OCR_API_KEY,
++        # Reranking settings
++        "RAG_RERANKING_MODEL": request.app.state.config.RAG_RERANKING_MODEL,
++        "RAG_RERANKING_ENGINE": request.app.state.config.RAG_RERANKING_ENGINE,
++        "RAG_EXTERNAL_RERANKER_URL": request.app.state.config.RAG_EXTERNAL_RERANKER_URL,
++        "RAG_EXTERNAL_RERANKER_API_KEY": request.app.state.config.RAG_EXTERNAL_RERANKER_API_KEY,
+         # Chunking settings
+         "TEXT_SPLITTER": request.app.state.config.TEXT_SPLITTER,
+         "CHUNK_SIZE": request.app.state.config.CHUNK_SIZE,
+@@ -479,6 +464,7 @@ class ConfigForm(BaseModel):
+     ENABLE_RAG_HYBRID_SEARCH: Optional[bool] = None
+     TOP_K_RERANKER: Optional[int] = None
+     RELEVANCE_THRESHOLD: Optional[float] = None
++    BM25_WEIGHT: Optional[float] = None
+ 
+     # Content extraction settings
+     CONTENT_EXTRACTION_ENGINE: Optional[str] = None
+@@ -489,6 +475,13 @@ class ConfigForm(BaseModel):
+     DOCUMENT_INTELLIGENCE_KEY: Optional[str] = None
+     MISTRAL_OCR_API_KEY: Optional[str] = None
+ 
++    # Reranking settings
++    RAG_RERANKING_MODEL: Optional[str] = None
++    RAG_RERANKING_ENGINE: Optional[str] = None
++    RAG_EXTERNAL_RERANKER_URL: Optional[str] = None
++    RAG_EXTERNAL_RERANKER_API_KEY: Optional[str] = None
++
++
+     # Chunking settings
+     TEXT_SPLITTER: Optional[str] = None
+     CHUNK_SIZE: Optional[int] = None
+@@ -552,6 +545,11 @@ async def update_rag_config(
+         if form_data.RELEVANCE_THRESHOLD is not None
+         else request.app.state.config.RELEVANCE_THRESHOLD
+     )
++    request.app.state.config.BM25_WEIGHT = (
++        form_data.BM25_WEIGHT
++        if form_data.BM25_WEIGHT is not None
++        else request.app.state.config.BM25_WEIGHT
++    )
+ 
+     # Content extraction settings
+     request.app.state.config.CONTENT_EXTRACTION_ENGINE = (
+@@ -590,6 +588,49 @@ async def update_rag_config(
+         else request.app.state.config.MISTRAL_OCR_API_KEY
+     )
+ 
++    # Reranking settings
++    request.app.state.config.RAG_RERANKING_ENGINE = (
++        form_data.RAG_RERANKING_ENGINE
++        if form_data.RAG_RERANKING_ENGINE is not None
++        else request.app.state.config.RAG_RERANKING_ENGINE
++    )
++
++    request.app.state.config.RAG_EXTERNAL_RERANKER_URL = (
++        form_data.RAG_EXTERNAL_RERANKER_URL
++        if form_data.RAG_EXTERNAL_RERANKER_URL is not None
++        else request.app.state.config.RAG_EXTERNAL_RERANKER_URL
++    )
++
++    request.app.state.config.RAG_EXTERNAL_RERANKER_API_KEY = (
++        form_data.RAG_EXTERNAL_RERANKER_API_KEY
++        if form_data.RAG_EXTERNAL_RERANKER_API_KEY is not None
++        else request.app.state.config.RAG_EXTERNAL_RERANKER_API_KEY
++    )
++
++    log.info(
++        f"Updating reranking model: {request.app.state.config.RAG_RERANKING_MODEL} to {form_data.RAG_RERANKING_MODEL}"
++    )
++    try:
++        request.app.state.config.RAG_RERANKING_MODEL = form_data.RAG_RERANKING_MODEL
++
++        try:
++            request.app.state.rf = get_rf(
++                request.app.state.config.RAG_RERANKING_ENGINE,
++                request.app.state.config.RAG_RERANKING_MODEL,
++                request.app.state.config.RAG_EXTERNAL_RERANKER_URL,
++                request.app.state.config.RAG_EXTERNAL_RERANKER_API_KEY,
++                True,
++            )
++        except Exception as e:
++            log.error(f"Error loading reranking model: {e}")
++            request.app.state.config.ENABLE_RAG_HYBRID_SEARCH = False
++    except Exception as e:
++        log.exception(f"Problem updating reranking model: {e}")
++        raise HTTPException(
++            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
++            detail=ERROR_MESSAGES.DEFAULT(e),
++        )
++
+     # Chunking settings
+     request.app.state.config.TEXT_SPLITTER = (
+         form_data.TEXT_SPLITTER
+@@ -721,6 +762,7 @@ async def update_rag_config(
+         "ENABLE_RAG_HYBRID_SEARCH": request.app.state.config.ENABLE_RAG_HYBRID_SEARCH,
+         "TOP_K_RERANKER": request.app.state.config.TOP_K_RERANKER,
+         "RELEVANCE_THRESHOLD": request.app.state.config.RELEVANCE_THRESHOLD,
++        "BM25_WEIGHT": request.app.state.config.BM25_WEIGHT,
+         # Content extraction settings
+         "CONTENT_EXTRACTION_ENGINE": request.app.state.config.CONTENT_EXTRACTION_ENGINE,
+         "PDF_EXTRACT_IMAGES": request.app.state.config.PDF_EXTRACT_IMAGES,
+@@ -729,6 +771,11 @@ async def update_rag_config(
+         "DOCUMENT_INTELLIGENCE_ENDPOINT": request.app.state.config.DOCUMENT_INTELLIGENCE_ENDPOINT,
+         "DOCUMENT_INTELLIGENCE_KEY": request.app.state.config.DOCUMENT_INTELLIGENCE_KEY,
+         "MISTRAL_OCR_API_KEY": request.app.state.config.MISTRAL_OCR_API_KEY,
++        # Reranking settings
++        "RAG_RERANKING_MODEL": request.app.state.config.RAG_RERANKING_MODEL,
++        "RAG_RERANKING_ENGINE": request.app.state.config.RAG_RERANKING_ENGINE,
++        "RAG_EXTERNAL_RERANKER_URL": request.app.state.config.RAG_EXTERNAL_RERANKER_URL,
++        "RAG_EXTERNAL_RERANKER_API_KEY": request.app.state.config.RAG_EXTERNAL_RERANKER_API_KEY,
+         # Chunking settings
+         "TEXT_SPLITTER": request.app.state.config.TEXT_SPLITTER,
+         "CHUNK_SIZE": request.app.state.config.CHUNK_SIZE,
+@@ -1586,6 +1633,11 @@ def query_doc_handler(
+                     if form_data.r
+                     else request.app.state.config.RELEVANCE_THRESHOLD
+                 ),
++                bm25_weight=(
++                    form_data.bm25_weight
++                    if form_data.bm25_weight
++                    else request.app.state.config.BM25_WEIGHT
++                ),
+                 user=user,
+             )
+         else:
+@@ -1637,6 +1689,11 @@ def query_collection_handler(
+                     if form_data.r
+                     else request.app.state.config.RELEVANCE_THRESHOLD
+                 ),
++                bm25_weight=(
++                    form_data.bm25_weight
++                    if form_data.bm25_weight
++                    else request.app.state.config.BM25_WEIGHT
++                ),
+             )
+         else:
+             return query_collection(
+diff --git a/backend/open_webui/utils/middleware.py b/backend/open_webui/utils/middleware.py
+index 4070bc697..182b6160c 100644
+--- a/backend/open_webui/utils/middleware.py
++++ b/backend/open_webui/utils/middleware.py
+@@ -627,6 +627,7 @@ async def chat_completion_files_handler(
+                         reranking_function=request.app.state.rf,
+                         k_reranker=request.app.state.config.TOP_K_RERANKER,
+                         r=request.app.state.config.RELEVANCE_THRESHOLD,
++                        bm25_weight=request.app.state.config.BM25_WEIGHT,
+                         hybrid_search=request.app.state.config.ENABLE_RAG_HYBRID_SEARCH,
+                         full_context=request.app.state.config.RAG_FULL_CONTEXT,
+                     ),
+@@ -1133,7 +1134,7 @@ async def process_chat_response(
+                         webhook_url = Users.get_user_webhook_url_by_id(user.id)
+                         if webhook_url:
+                             post_webhook(
+-                                request.app.state.WEBUI_NAME,
++                                request.app.state.config.PROJECT_NAME,
+                                 webhook_url,
+                                 f"{title} - {request.app.state.config.WEBUI_URL}/c/{metadata['chat_id']}\n\n{content}",
+                                 {
+@@ -2215,7 +2216,7 @@ async def process_chat_response(
+                     webhook_url = Users.get_user_webhook_url_by_id(user.id)
+                     if webhook_url:
+                         post_webhook(
+-                            request.app.state.WEBUI_NAME,
++                            request.app.state.config.PROJECT_NAME,
+                             webhook_url,
+                             f"{title} - {request.app.state.config.WEBUI_URL}/c/{metadata['chat_id']}\n\n{content}",
+                             {
+diff --git a/backend/open_webui/utils/oauth.py b/backend/open_webui/utils/oauth.py
+index 9ebe0e6dc..448e229e0 100644
+--- a/backend/open_webui/utils/oauth.py
++++ b/backend/open_webui/utils/oauth.py
+@@ -37,7 +37,6 @@ from open_webui.config import (
+ )
+ from open_webui.constants import ERROR_MESSAGES, WEBHOOK_MESSAGES
+ from open_webui.env import (
+-    WEBUI_NAME,
+     WEBUI_AUTH_COOKIE_SAME_SITE,
+     WEBUI_AUTH_COOKIE_SECURE,
+ )
+@@ -389,7 +388,7 @@ class OAuthManager:
+ 
+                 if auth_manager_config.WEBHOOK_URL:
+                     post_webhook(
+-                        WEBUI_NAME,
++                        request.app.state.config.PROJECT_NAME,
+                         auth_manager_config.WEBHOOK_URL,
+                         WEBHOOK_MESSAGES.USER_SIGNUP(user.name),
+                         {
+diff --git a/cypress/support/e2e.ts b/cypress/support/e2e.ts
+index 0b94c4787..511688f8a 100644
+--- a/cypress/support/e2e.ts
++++ b/cypress/support/e2e.ts
+@@ -14,7 +14,7 @@ const login = (email: string, password: string) => {
+ 		() => {
+ 			// Make sure to test against us english to have stable tests,
+ 			// regardless on local language preferences
+-			localStorage.setItem('locale', 'en-US');
++			localStorage.setItem('locale', 'zh-CN');
+ 			// Visit auth page
+ 			cy.visit('/auth');
+ 			// Fill out the form
+diff --git a/package-lock.json b/package-lock.json
+index c4f6948bd..668dd0ed0 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -50,6 +50,7 @@
+ 				"kokoro-js": "^1.1.1",
+ 				"marked": "^9.1.0",
+ 				"mermaid": "^11.6.0",
++				"onnxruntime-node": "^1.22.0-rev",
+ 				"paneforge": "^0.0.6",
+ 				"panzoom": "^9.4.3",
+ 				"prosemirror-commands": "^1.6.0",
+@@ -1248,6 +1249,28 @@
+ 				"sharp": "^0.33.5"
+ 			}
+ 		},
++		"node_modules/@huggingface/transformers/node_modules/onnxruntime-common": {
++			"version": "1.20.1",
++			"resolved": "https://registry.npmjs.org/onnxruntime-common/-/onnxruntime-common-1.20.1.tgz",
++			"integrity": "sha512-YiU0s0IzYYC+gWvqD1HzLc46Du1sXpSiwzKb63PACIJr6LfL27VsXSXQvt68EzD3V0D5Bc0vyJTjmMxp0ylQiw==",
++			"license": "MIT"
++		},
++		"node_modules/@huggingface/transformers/node_modules/onnxruntime-node": {
++			"version": "1.20.1",
++			"resolved": "https://registry.npmjs.org/onnxruntime-node/-/onnxruntime-node-1.20.1.tgz",
++			"integrity": "sha512-di/I4HDXRw+FLgq+TyHmQEDd3cEp9iFFZm0r4uJ1Wd7b/WE1VXtKWo8yemex347c6GNF/3Pv86ZfPhIWxORr0w==",
++			"hasInstallScript": true,
++			"license": "MIT",
++			"os": [
++				"win32",
++				"darwin",
++				"linux"
++			],
++			"dependencies": {
++				"onnxruntime-common": "1.20.1",
++				"tar": "^7.0.1"
++			}
++		},
+ 		"node_modules/@humanwhocodes/config-array": {
+ 			"version": "0.11.14",
+ 			"resolved": "https://registry.npmjs.org/@humanwhocodes/config-array/-/config-array-0.11.14.tgz",
+@@ -1750,47 +1773,6 @@
+ 				"@swc/helpers": "^0.5.0"
+ 			}
+ 		},
+-		"node_modules/@isaacs/cliui": {
+-			"version": "8.0.2",
+-			"resolved": "https://registry.npmjs.org/@isaacs/cliui/-/cliui-8.0.2.tgz",
+-			"integrity": "sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==",
+-			"dependencies": {
+-				"string-width": "^5.1.2",
+-				"string-width-cjs": "npm:string-width@^4.2.0",
+-				"strip-ansi": "^7.0.1",
+-				"strip-ansi-cjs": "npm:strip-ansi@^6.0.1",
+-				"wrap-ansi": "^8.1.0",
+-				"wrap-ansi-cjs": "npm:wrap-ansi@^7.0.0"
+-			},
+-			"engines": {
+-				"node": ">=12"
+-			}
+-		},
+-		"node_modules/@isaacs/cliui/node_modules/ansi-regex": {
+-			"version": "6.0.1",
+-			"resolved": "https://registry.npmjs.org/ansi-regex/-/ansi-regex-6.0.1.tgz",
+-			"integrity": "sha512-n5M855fKb2SsfMIiFFoVrABHJC8QtHwVx+mHWP3QcEqBHYienj5dHSgjbxtC0WEZXYt4wcD6zrQElDPhFuZgfA==",
+-			"engines": {
+-				"node": ">=12"
+-			},
+-			"funding": {
+-				"url": "https://github.com/chalk/ansi-regex?sponsor=1"
+-			}
+-		},
+-		"node_modules/@isaacs/cliui/node_modules/strip-ansi": {
+-			"version": "7.1.0",
+-			"resolved": "https://registry.npmjs.org/strip-ansi/-/strip-ansi-7.1.0.tgz",
+-			"integrity": "sha512-iq6eVVI64nQQTRYq2KtEg2d2uU7LElhTJwsH4YzIHZshxlgZms/wIc4VoDQTlG/IvVIrBKG06CrZnp0qv7hkcQ==",
+-			"dependencies": {
+-				"ansi-regex": "^6.0.1"
+-			},
+-			"engines": {
+-				"node": ">=12"
+-			},
+-			"funding": {
+-				"url": "https://github.com/chalk/strip-ansi?sponsor=1"
+-			}
+-		},
+ 		"node_modules/@isaacs/fs-minipass": {
+ 			"version": "4.0.1",
+ 			"resolved": "https://registry.npmjs.org/@isaacs/fs-minipass/-/fs-minipass-4.0.1.tgz",
+@@ -2086,15 +2068,6 @@
+ 				"node": ">= 8"
+ 			}
+ 		},
+-		"node_modules/@pkgjs/parseargs": {
+-			"version": "0.11.0",
+-			"resolved": "https://registry.npmjs.org/@pkgjs/parseargs/-/parseargs-0.11.0.tgz",
+-			"integrity": "sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==",
+-			"optional": true,
+-			"engines": {
+-				"node": ">=14"
+-			}
+-		},
+ 		"node_modules/@polka/url": {
+ 			"version": "1.0.0-next.28",
+ 			"resolved": "https://registry.npmjs.org/@polka/url/-/url-1.0.0-next.28.tgz",
+@@ -4026,6 +3999,15 @@
+ 				"node": ">=0.4.0"
+ 			}
+ 		},
++		"node_modules/adm-zip": {
++			"version": "0.5.16",
++			"resolved": "https://registry.npmjs.org/adm-zip/-/adm-zip-0.5.16.tgz",
++			"integrity": "sha512-TGw5yVi4saajsSEgz25grObGHEUaDrniwvA2qwSC060KfqGPdglhvPMA2lPIoxs3PQIItj2iag35fONcQqgUaQ==",
++			"license": "MIT",
++			"engines": {
++				"node": ">=12.0"
++			}
++		},
+ 		"node_modules/aggregate-error": {
+ 			"version": "3.1.0",
+ 			"resolved": "https://registry.npmjs.org/aggregate-error/-/aggregate-error-3.1.0.tgz",
+@@ -4103,6 +4085,7 @@
+ 			"version": "5.0.1",
+ 			"resolved": "https://registry.npmjs.org/ansi-regex/-/ansi-regex-5.0.1.tgz",
+ 			"integrity": "sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ==",
++			"dev": true,
+ 			"engines": {
+ 				"node": ">=8"
+ 			}
+@@ -4111,6 +4094,7 @@
+ 			"version": "4.3.0",
+ 			"resolved": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-4.3.0.tgz",
+ 			"integrity": "sha512-zbB9rCJAT1rbjiVDb2hqKFHNYLxgtk8NURxZ3IZwD3F6NtxbXZQCnnSi1Lkx+IDohdPlFp222wVALIheZJQSEg==",
++			"dev": true,
+ 			"dependencies": {
+ 				"color-convert": "^2.0.1"
+ 			},
+@@ -4395,6 +4379,13 @@
+ 			"dev": true,
+ 			"license": "ISC"
+ 		},
++		"node_modules/boolean": {
++			"version": "3.2.0",
++			"resolved": "https://registry.npmjs.org/boolean/-/boolean-3.2.0.tgz",
++			"integrity": "sha512-d0II/GO9uf9lfUHH2BQsjxzRJZBdsjgsBiW4BvhWk/3qoKwQFjIDVN19PfX8F2D/r9PCMTtLWjYVCFrpeYUzsw==",
++			"deprecated": "Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.",
++			"license": "MIT"
++		},
+ 		"node_modules/brace-expansion": {
+ 			"version": "2.0.1",
+ 			"resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-2.0.1.tgz",
+@@ -5186,6 +5177,7 @@
+ 			"version": "7.0.6",
+ 			"resolved": "https://registry.npmjs.org/cross-spawn/-/cross-spawn-7.0.6.tgz",
+ 			"integrity": "sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==",
++			"dev": true,
+ 			"license": "MIT",
+ 			"dependencies": {
+ 				"path-key": "^3.1.0",
+@@ -5937,7 +5929,6 @@
+ 			"version": "1.1.4",
+ 			"resolved": "https://registry.npmjs.org/define-data-property/-/define-data-property-1.1.4.tgz",
+ 			"integrity": "sha512-rBMvIzlpA8v6E+SJZoo++HAYqsLrkg7MSfIinMPFhmkorw7X+dOXVJQs+QT69zGkzMyfDnIMN2Wid1+NbL3T+A==",
+-			"dev": true,
+ 			"dependencies": {
+ 				"es-define-property": "^1.0.0",
+ 				"es-errors": "^1.3.0",
+@@ -5950,6 +5941,23 @@
+ 				"url": "https://github.com/sponsors/ljharb"
+ 			}
+ 		},
++		"node_modules/define-properties": {
++			"version": "1.2.1",
++			"resolved": "https://registry.npmjs.org/define-properties/-/define-properties-1.2.1.tgz",
++			"integrity": "sha512-8QmQKqEASLd5nx0U1B1okLElbUuuttJ/AnYmRXbbbGDWh6uS208EjD4Xqq/I9wK7u0v6O08XhTWnt5XtEbR6Dg==",
++			"license": "MIT",
++			"dependencies": {
++				"define-data-property": "^1.0.1",
++				"has-property-descriptors": "^1.0.0",
++				"object-keys": "^1.1.1"
++			},
++			"engines": {
++				"node": ">= 0.4"
++			},
++			"funding": {
++				"url": "https://github.com/sponsors/ljharb"
++			}
++		},
+ 		"node_modules/delaunator": {
+ 			"version": "5.0.1",
+ 			"resolved": "https://registry.npmjs.org/delaunator/-/delaunator-5.0.1.tgz",
+@@ -5993,6 +6001,12 @@
+ 				"node": ">=8"
+ 			}
+ 		},
++		"node_modules/detect-node": {
++			"version": "2.1.0",
++			"resolved": "https://registry.npmjs.org/detect-node/-/detect-node-2.1.0.tgz",
++			"integrity": "sha512-T0NIuQpnTvFDATNuHN5roPwSBG83rFsuO+MXXH9/3N1eFbn4wcPjttvjMLEPWJ0RGUYgQE7cGgS3tNxbqCGM7g==",
++			"license": "MIT"
++		},
+ 		"node_modules/devalue": {
+ 			"version": "5.1.1",
+ 			"resolved": "https://registry.npmjs.org/devalue/-/devalue-5.1.1.tgz",
+@@ -6114,11 +6128,6 @@
+ 				"url": "https://github.com/fb55/domutils?sponsor=1"
+ 			}
+ 		},
+-		"node_modules/eastasianwidth": {
+-			"version": "0.2.0",
+-			"resolved": "https://registry.npmjs.org/eastasianwidth/-/eastasianwidth-0.2.0.tgz",
+-			"integrity": "sha512-I88TYZWc9XiYHRQ4/3c5rjjfgkjhLyW2luGIheGERbNQ6OY7yTybanSpDXZa8y7VUP9YmDcYa+eyq4ca7iLqWA=="
+-		},
+ 		"node_modules/ecc-jsbn": {
+ 			"version": "0.1.2",
+ 			"resolved": "https://registry.npmjs.org/ecc-jsbn/-/ecc-jsbn-0.1.2.tgz",
+@@ -6129,11 +6138,6 @@
+ 				"safer-buffer": "^2.1.0"
+ 			}
+ 		},
+-		"node_modules/emoji-regex": {
+-			"version": "9.2.2",
+-			"resolved": "https://registry.npmjs.org/emoji-regex/-/emoji-regex-9.2.2.tgz",
+-			"integrity": "sha512-L18DaJsXSUk2+42pv8mLs5jJT2hqFkFE4j21wOmgbUqsZ2hL72NsUU785g9RXgo3s0ZNgVl42TiHp3ZtOv/Vyg=="
+-		},
+ 		"node_modules/encoding-sniffer": {
+ 			"version": "0.2.0",
+ 			"resolved": "https://registry.npmjs.org/encoding-sniffer/-/encoding-sniffer-0.2.0.tgz",
+@@ -6231,7 +6235,6 @@
+ 			"version": "1.0.0",
+ 			"resolved": "https://registry.npmjs.org/es-define-property/-/es-define-property-1.0.0.tgz",
+ 			"integrity": "sha512-jxayLKShrEqqzJ0eumQbVhTYQM27CfT1T35+gCgDFoL82JLsXqTJ76zv6A0YLOgEnLUMvLzsDsGIrl8NFpT2gQ==",
+-			"dev": true,
+ 			"dependencies": {
+ 				"get-intrinsic": "^1.2.4"
+ 			},
+@@ -6243,11 +6246,16 @@
+ 			"version": "1.3.0",
+ 			"resolved": "https://registry.npmjs.org/es-errors/-/es-errors-1.3.0.tgz",
+ 			"integrity": "sha512-Zf5H2Kxt2xjTvbJvP2ZWLEICxA6j+hAmMzIlypy4xcBg1vKVnx89Wy0GbS+kf5cwCVFFzdCFh2XSCFNULS6csw==",
+-			"dev": true,
+ 			"engines": {
+ 				"node": ">= 0.4"
+ 			}
+ 		},
++		"node_modules/es6-error": {
++			"version": "4.1.1",
++			"resolved": "https://registry.npmjs.org/es6-error/-/es6-error-4.1.1.tgz",
++			"integrity": "sha512-Um/+FxMr9CISWh0bi5Zv0iOD+4cFh5qLeks1qhAopKVAJw3drgKbKySikp7wGhDL0HPeaja0P5ULZrxLkniUVg==",
++			"license": "MIT"
++		},
+ 		"node_modules/es6-promise": {
+ 			"version": "3.3.1",
+ 			"resolved": "https://registry.npmjs.org/es6-promise/-/es6-promise-3.3.1.tgz",
+@@ -6838,21 +6846,6 @@
+ 				"tabbable": "^6.2.0"
+ 			}
+ 		},
+-		"node_modules/foreground-child": {
+-			"version": "3.1.1",
+-			"resolved": "https://registry.npmjs.org/foreground-child/-/foreground-child-3.1.1.tgz",
+-			"integrity": "sha512-TMKDUnIte6bfb5nWv7V/caI169OHgvwjb7V4WkeUvbQQdjr5rWKqHFiKWb/fcOwB+CzBT+qbWjvj+DVwRskpIg==",
+-			"dependencies": {
+-				"cross-spawn": "^7.0.0",
+-				"signal-exit": "^4.0.1"
+-			},
+-			"engines": {
+-				"node": ">=14"
+-			},
+-			"funding": {
+-				"url": "https://github.com/sponsors/isaacs"
+-			}
+-		},
+ 		"node_modules/forever-agent": {
+ 			"version": "0.6.1",
+ 			"resolved": "https://registry.npmjs.org/forever-agent/-/forever-agent-0.6.1.tgz",
+@@ -7016,7 +7009,6 @@
+ 			"version": "1.2.4",
+ 			"resolved": "https://registry.npmjs.org/get-intrinsic/-/get-intrinsic-1.2.4.tgz",
+ 			"integrity": "sha512-5uYhsJH8VJBTv7oslg4BznJYhDoRI6waYCxMmCdnTrcCrHA/fCFKoTFz2JKKE0HdDFUF7/oQuhzumXJK7paBRQ==",
+-			"dev": true,
+ 			"dependencies": {
+ 				"es-errors": "^1.3.0",
+ 				"function-bind": "^1.1.2",
+@@ -7124,6 +7116,23 @@
+ 				"node": ">=10"
+ 			}
+ 		},
++		"node_modules/global-agent": {
++			"version": "3.0.0",
++			"resolved": "https://registry.npmjs.org/global-agent/-/global-agent-3.0.0.tgz",
++			"integrity": "sha512-PT6XReJ+D07JvGoxQMkT6qji/jVNfX/h364XHZOWeRzy64sSFr+xJ5OX7LI3b4MPQzdL4H8Y8M0xzPpsVMwA8Q==",
++			"license": "BSD-3-Clause",
++			"dependencies": {
++				"boolean": "^3.0.1",
++				"es6-error": "^4.1.1",
++				"matcher": "^3.0.0",
++				"roarr": "^2.15.3",
++				"semver": "^7.3.2",
++				"serialize-error": "^7.0.1"
++			},
++			"engines": {
++				"node": ">=10.0"
++			}
++		},
+ 		"node_modules/global-dirs": {
+ 			"version": "3.0.1",
+ 			"resolved": "https://registry.npmjs.org/global-dirs/-/global-dirs-3.0.1.tgz",
+@@ -7154,6 +7163,22 @@
+ 				"url": "https://github.com/sponsors/sindresorhus"
+ 			}
+ 		},
++		"node_modules/globalthis": {
++			"version": "1.0.4",
++			"resolved": "https://registry.npmjs.org/globalthis/-/globalthis-1.0.4.tgz",
++			"integrity": "sha512-DpLKbNU4WylpxJykQujfCcwYWiV/Jhm50Goo0wrVILAv5jOr9d+H+UR3PhSCD2rCCEIg0uc+G+muBTwD54JhDQ==",
++			"license": "MIT",
++			"dependencies": {
++				"define-properties": "^1.2.1",
++				"gopd": "^1.0.1"
++			},
++			"engines": {
++				"node": ">= 0.4"
++			},
++			"funding": {
++				"url": "https://github.com/sponsors/ljharb"
++			}
++		},
+ 		"node_modules/globby": {
+ 			"version": "11.1.0",
+ 			"resolved": "https://registry.npmjs.org/globby/-/globby-11.1.0.tgz",
+@@ -7178,7 +7203,6 @@
+ 			"version": "1.0.1",
+ 			"resolved": "https://registry.npmjs.org/gopd/-/gopd-1.0.1.tgz",
+ 			"integrity": "sha512-d65bNlIadxvpb/A2abVdlqKqV563juRnZ1Wtk6s1sIR8uNsXR70xqIzVqxVf1eTqDunwT2MkczEeaezCKTZhwA==",
+-			"dev": true,
+ 			"dependencies": {
+ 				"get-intrinsic": "^1.1.3"
+ 			},
+@@ -7231,7 +7255,6 @@
+ 			"version": "1.0.2",
+ 			"resolved": "https://registry.npmjs.org/has-property-descriptors/-/has-property-descriptors-1.0.2.tgz",
+ 			"integrity": "sha512-55JNKuIW+vq4Ke1BjOTjM2YctQIvCT7GFzHwmfZPGo5wnrgkid0YQtnAleFSqumZm4az3n2BS+erby5ipJdgrg==",
+-			"dev": true,
+ 			"dependencies": {
+ 				"es-define-property": "^1.0.0"
+ 			},
+@@ -7243,7 +7266,6 @@
+ 			"version": "1.0.3",
+ 			"resolved": "https://registry.npmjs.org/has-proto/-/has-proto-1.0.3.tgz",
+ 			"integrity": "sha512-SJ1amZAJUiZS+PhsVLf5tGydlaVB8EdFpaSO4gmiUKUOxk8qzn5AIy4ZeJUmh22znIdk/uMAUT2pl3FxzVUH+Q==",
+-			"dev": true,
+ 			"engines": {
+ 				"node": ">= 0.4"
+ 			},
+@@ -7255,7 +7277,6 @@
+ 			"version": "1.0.3",
+ 			"resolved": "https://registry.npmjs.org/has-symbols/-/has-symbols-1.0.3.tgz",
+ 			"integrity": "sha512-l3LCuF6MgDNwTDKkdYGEihYjt5pRPbEg46rtlmnSPlUbgmB8LOIrKJbYYFBSbnPaJexMKtiPO8hmeRjRz2Td+A==",
+-			"dev": true,
+ 			"engines": {
+ 				"node": ">= 0.4"
+ 			},
+@@ -7677,6 +7698,7 @@
+ 			"version": "3.0.0",
+ 			"resolved": "https://registry.npmjs.org/is-fullwidth-code-point/-/is-fullwidth-code-point-3.0.0.tgz",
+ 			"integrity": "sha512-zymm5+u+sCsSWyD9qNaejV3DFvhCKclKdizYaJUuHA83RLjb7nSuGnddCHGv0hk+KY7BMAlsWeK4Ueg6EV6XQg==",
++			"dev": true,
+ 			"engines": {
+ 				"node": ">=8"
+ 			}
+@@ -7807,7 +7829,8 @@
+ 		"node_modules/isexe": {
+ 			"version": "2.0.0",
+ 			"resolved": "https://registry.npmjs.org/isexe/-/isexe-2.0.0.tgz",
+-			"integrity": "sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw=="
++			"integrity": "sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==",
++			"dev": true
+ 		},
+ 		"node_modules/isstream": {
+ 			"version": "0.1.2",
+@@ -7871,8 +7894,7 @@
+ 		"node_modules/json-stringify-safe": {
+ 			"version": "5.0.1",
+ 			"resolved": "https://registry.npmjs.org/json-stringify-safe/-/json-stringify-safe-5.0.1.tgz",
+-			"integrity": "sha512-ZClg6AaYvamvYEE82d3Iyd3vSSIjQ+odgjaTzRuO3s7toCdFKczob2i0zCh7JE8kWn17yvAWhUVxvqGwUalsRA==",
+-			"dev": true
++			"integrity": "sha512-ZClg6AaYvamvYEE82d3Iyd3vSSIjQ+odgjaTzRuO3s7toCdFKczob2i0zCh7JE8kWn17yvAWhUVxvqGwUalsRA=="
+ 		},
+ 		"node_modules/jsonfile": {
+ 			"version": "6.1.0",
+@@ -8598,6 +8620,18 @@
+ 				"node": ">= 16"
+ 			}
+ 		},
++		"node_modules/matcher": {
++			"version": "3.0.0",
++			"resolved": "https://registry.npmjs.org/matcher/-/matcher-3.0.0.tgz",
++			"integrity": "sha512-OkeDaAZ/bQCxeFAozM55PKcKU0yJMPGifLwV4Qgjitu+5MoAfSQN4lsLJeXZ1b8w0x+/Emda6MZgXS1jvsapng==",
++			"license": "MIT",
++			"dependencies": {
++				"escape-string-regexp": "^4.0.0"
++			},
++			"engines": {
++				"node": ">=10"
++			}
++		},
+ 		"node_modules/matcher-collection": {
+ 			"version": "2.0.1",
+ 			"resolved": "https://registry.npmjs.org/matcher-collection/-/matcher-collection-2.0.1.tgz",
+@@ -8789,88 +8823,23 @@
+ 			"version": "7.1.2",
+ 			"resolved": "https://registry.npmjs.org/minipass/-/minipass-7.1.2.tgz",
+ 			"integrity": "sha512-qOOzS1cBTWYF4BH8fVePDBOO9iptMnGUEZwNc/cMWnTV2nVLZ7VoNWEPHkYczZA0pdoA7dl6e7FL659nX9S2aw==",
++			"license": "ISC",
+ 			"engines": {
+ 				"node": ">=16 || 14 >=14.17"
+ 			}
+ 		},
+ 		"node_modules/minizlib": {
+-			"version": "3.0.1",
+-			"resolved": "https://registry.npmjs.org/minizlib/-/minizlib-3.0.1.tgz",
+-			"integrity": "sha512-umcy022ILvb5/3Djuu8LWeqUa8D68JaBzlttKeMWen48SjabqS3iY5w/vzeMzMUNhLDifyhbOwKDSznB1vvrwg==",
++			"version": "3.0.2",
++			"resolved": "https://registry.npmjs.org/minizlib/-/minizlib-3.0.2.tgz",
++			"integrity": "sha512-oG62iEk+CYt5Xj2YqI5Xi9xWUeZhDI8jjQmC5oThVH5JGCTgIjr7ciJDzC7MBzYd//WvR1OTmP5Q38Q8ShQtVA==",
+ 			"license": "MIT",
+ 			"dependencies": {
+-				"minipass": "^7.0.4",
+-				"rimraf": "^5.0.5"
++				"minipass": "^7.1.2"
+ 			},
+ 			"engines": {
+ 				"node": ">= 18"
+ 			}
+ 		},
+-		"node_modules/minizlib/node_modules/glob": {
+-			"version": "10.4.5",
+-			"resolved": "https://registry.npmjs.org/glob/-/glob-10.4.5.tgz",
+-			"integrity": "sha512-7Bv8RF0k6xjo7d4A/PxYLbUCfb6c+Vpd2/mB2yRDlew7Jb5hEXiCD9ibfO7wpk8i4sevK6DFny9h7EYbM3/sHg==",
+-			"license": "ISC",
+-			"dependencies": {
+-				"foreground-child": "^3.1.0",
+-				"jackspeak": "^3.1.2",
+-				"minimatch": "^9.0.4",
+-				"minipass": "^7.1.2",
+-				"package-json-from-dist": "^1.0.0",
+-				"path-scurry": "^1.11.1"
+-			},
+-			"bin": {
+-				"glob": "dist/esm/bin.mjs"
+-			},
+-			"funding": {
+-				"url": "https://github.com/sponsors/isaacs"
+-			}
+-		},
+-		"node_modules/minizlib/node_modules/jackspeak": {
+-			"version": "3.4.3",
+-			"resolved": "https://registry.npmjs.org/jackspeak/-/jackspeak-3.4.3.tgz",
+-			"integrity": "sha512-OGlZQpz2yfahA/Rd1Y8Cd9SIEsqvXkLVoSw/cgwhnhFMDbsQFeZYoJJ7bIZBS9BcamUW96asq/npPWugM+RQBw==",
+-			"license": "BlueOak-1.0.0",
+-			"dependencies": {
+-				"@isaacs/cliui": "^8.0.2"
+-			},
+-			"funding": {
+-				"url": "https://github.com/sponsors/isaacs"
+-			},
+-			"optionalDependencies": {
+-				"@pkgjs/parseargs": "^0.11.0"
+-			}
+-		},
+-		"node_modules/minizlib/node_modules/minimatch": {
+-			"version": "9.0.5",
+-			"resolved": "https://registry.npmjs.org/minimatch/-/minimatch-9.0.5.tgz",
+-			"integrity": "sha512-G6T0ZX48xgozx7587koeX9Ys2NYy6Gmv//P89sEte9V9whIapMNF4idKxnW2QtCcLiTWlb/wfCabAtAFWhhBow==",
+-			"license": "ISC",
+-			"dependencies": {
+-				"brace-expansion": "^2.0.1"
+-			},
+-			"engines": {
+-				"node": ">=16 || 14 >=14.17"
+-			},
+-			"funding": {
+-				"url": "https://github.com/sponsors/isaacs"
+-			}
+-		},
+-		"node_modules/minizlib/node_modules/rimraf": {
+-			"version": "5.0.10",
+-			"resolved": "https://registry.npmjs.org/rimraf/-/rimraf-5.0.10.tgz",
+-			"integrity": "sha512-l0OE8wL34P4nJH/H2ffoaniAokM2qSmrtXHmlpvYr5AVVX8msAyW0l8NVJFDxlSK4u3Uh/f41cQheDVdnYijwQ==",
+-			"license": "ISC",
+-			"dependencies": {
+-				"glob": "^10.3.7"
+-			},
+-			"bin": {
+-				"rimraf": "dist/esm/bin.mjs"
+-			},
+-			"funding": {
+-				"url": "https://github.com/sponsors/isaacs"
+-			}
+-		},
+ 		"node_modules/mkdirp": {
+ 			"version": "0.5.6",
+ 			"resolved": "https://registry.npmjs.org/mkdirp/-/mkdirp-0.5.6.tgz",
+@@ -9038,6 +9007,15 @@
+ 				"url": "https://github.com/sponsors/ljharb"
+ 			}
+ 		},
++		"node_modules/object-keys": {
++			"version": "1.1.1",
++			"resolved": "https://registry.npmjs.org/object-keys/-/object-keys-1.1.1.tgz",
++			"integrity": "sha512-NuAESUOUMrlIXOfHKzD6bpPu3tYt3xvjNdRIQ+FeT0lNb4K8WR70CaDxhuNguS2XG+GjkyMwOzsN5ZktImfhLA==",
++			"license": "MIT",
++			"engines": {
++				"node": ">= 0.4"
++			}
++		},
+ 		"node_modules/once": {
+ 			"version": "1.4.0",
+ 			"resolved": "https://registry.npmjs.org/once/-/once-1.4.0.tgz",
+@@ -9062,15 +9040,15 @@
+ 			}
+ 		},
+ 		"node_modules/onnxruntime-common": {
+-			"version": "1.20.1",
+-			"resolved": "https://registry.npmjs.org/onnxruntime-common/-/onnxruntime-common-1.20.1.tgz",
+-			"integrity": "sha512-YiU0s0IzYYC+gWvqD1HzLc46Du1sXpSiwzKb63PACIJr6LfL27VsXSXQvt68EzD3V0D5Bc0vyJTjmMxp0ylQiw==",
++			"version": "1.22.0",
++			"resolved": "https://registry.npmjs.org/onnxruntime-common/-/onnxruntime-common-1.22.0.tgz",
++			"integrity": "sha512-vcuaNWgtF2dGQu/EP5P8UI5rEPEYqXG2sPPe5j9lg2TY/biJF8eWklTMwlDO08iuXq48xJo0awqIpK5mPG+IxA==",
+ 			"license": "MIT"
+ 		},
+ 		"node_modules/onnxruntime-node": {
+-			"version": "1.20.1",
+-			"resolved": "https://registry.npmjs.org/onnxruntime-node/-/onnxruntime-node-1.20.1.tgz",
+-			"integrity": "sha512-di/I4HDXRw+FLgq+TyHmQEDd3cEp9iFFZm0r4uJ1Wd7b/WE1VXtKWo8yemex347c6GNF/3Pv86ZfPhIWxORr0w==",
++			"version": "1.22.0-rev",
++			"resolved": "https://registry.npmjs.org/onnxruntime-node/-/onnxruntime-node-1.22.0-rev.tgz",
++			"integrity": "sha512-9vh50/mnwauFUex0NYyyLf9pmRp8q6DVMG8K+xtoXv68SSB9bESa1bEbWLqfUncgB3XucQaOV+wfMPcqANMYhQ==",
+ 			"hasInstallScript": true,
+ 			"license": "MIT",
+ 			"os": [
+@@ -9079,8 +9057,9 @@
+ 				"linux"
+ 			],
+ 			"dependencies": {
+-				"onnxruntime-common": "1.20.1",
+-				"tar": "^7.0.1"
++				"adm-zip": "^0.5.16",
++				"global-agent": "^3.0.0",
++				"onnxruntime-common": "1.22.0"
+ 			}
+ 		},
+ 		"node_modules/onnxruntime-web": {
+@@ -9176,12 +9155,6 @@
+ 				"url": "https://github.com/sponsors/sindresorhus"
+ 			}
+ 		},
+-		"node_modules/package-json-from-dist": {
+-			"version": "1.0.1",
+-			"resolved": "https://registry.npmjs.org/package-json-from-dist/-/package-json-from-dist-1.0.1.tgz",
+-			"integrity": "sha512-UEZIS3/by4OC8vL3P2dTXRETpebLI2NiI5vIrjaD/5UtrkFX/tNbwjTSRAGC/+7CAo2pIcBaRgWmcBBHcsaCIw==",
+-			"license": "BlueOak-1.0.0"
+-		},
+ 		"node_modules/package-manager-detector": {
+ 			"version": "0.2.11",
+ 			"resolved": "https://registry.npmjs.org/package-manager-detector/-/package-manager-detector-0.2.11.tgz",
+@@ -9292,6 +9265,7 @@
+ 			"version": "3.1.1",
+ 			"resolved": "https://registry.npmjs.org/path-key/-/path-key-3.1.1.tgz",
+ 			"integrity": "sha512-ojmeN0qd+y0jszEtoY48r0Peq5dwMEkIlCOu6Q5f41lfkswXuKtYrhgoTpLnyIcHm24Uhqx+5Tqm2InSwLhE6Q==",
++			"dev": true,
+ 			"engines": {
+ 				"node": ">=8"
+ 			}
+@@ -9307,29 +9281,6 @@
+ 			"integrity": "sha512-1gJ0WpNIiYcQydgg3Ed8KzvIqTsDpNwq+cjBCssvBtuTWjEqY1AW+i+OepiEMqDCzyro9B2sLAe4RBPajMYFiA==",
+ 			"dev": true
+ 		},
+-		"node_modules/path-scurry": {
+-			"version": "1.11.1",
+-			"resolved": "https://registry.npmjs.org/path-scurry/-/path-scurry-1.11.1.tgz",
+-			"integrity": "sha512-Xa4Nw17FS9ApQFJ9umLiJS4orGjm7ZzwUrwamcGQuHSzDyth9boKDaycYdDcZDuqYATXw4HFXgaqWTctW/v1HA==",
+-			"dependencies": {
+-				"lru-cache": "^10.2.0",
+-				"minipass": "^5.0.0 || ^6.0.2 || ^7.0.0"
+-			},
+-			"engines": {
+-				"node": ">=16 || 14 >=14.18"
+-			},
+-			"funding": {
+-				"url": "https://github.com/sponsors/isaacs"
+-			}
+-		},
+-		"node_modules/path-scurry/node_modules/lru-cache": {
+-			"version": "10.2.0",
+-			"resolved": "https://registry.npmjs.org/lru-cache/-/lru-cache-10.2.0.tgz",
+-			"integrity": "sha512-2bIM8x+VAf6JT4bKAljS1qUWgMsqZRPGJS6FSahIMPVvctcNhyVp7AJu7quxOW9jwkryBReKZY5tY5JYv2n/7Q==",
+-			"engines": {
+-				"node": "14 || >=16.14"
+-			}
+-		},
+ 		"node_modules/path-type": {
+ 			"version": "4.0.0",
+ 			"resolved": "https://registry.npmjs.org/path-type/-/path-type-4.0.0.tgz",
+@@ -10350,6 +10301,23 @@
+ 				"node": "*"
+ 			}
+ 		},
++		"node_modules/roarr": {
++			"version": "2.15.4",
++			"resolved": "https://registry.npmjs.org/roarr/-/roarr-2.15.4.tgz",
++			"integrity": "sha512-CHhPh+UNHD2GTXNYhPWLnU8ONHdI+5DI+4EYIAOaiD63rHeYlZvyh8P+in5999TTSFgUYuKUAjzRI4mdh/p+2A==",
++			"license": "BSD-3-Clause",
++			"dependencies": {
++				"boolean": "^3.0.1",
++				"detect-node": "^2.0.4",
++				"globalthis": "^1.0.1",
++				"json-stringify-safe": "^5.0.1",
++				"semver-compare": "^1.0.0",
++				"sprintf-js": "^1.1.2"
++			},
++			"engines": {
++				"node": ">=8.0"
++			}
++		},
+ 		"node_modules/robust-predicates": {
+ 			"version": "3.0.2",
+ 			"resolved": "https://registry.npmjs.org/robust-predicates/-/robust-predicates-3.0.2.tgz",
+@@ -10933,6 +10901,39 @@
+ 				"node": ">=10"
+ 			}
+ 		},
++		"node_modules/semver-compare": {
++			"version": "1.0.0",
++			"resolved": "https://registry.npmjs.org/semver-compare/-/semver-compare-1.0.0.tgz",
++			"integrity": "sha512-YM3/ITh2MJ5MtzaM429anh+x2jiLVjqILF4m4oyQB18W7Ggea7BfqdH/wGMK7dDiMghv/6WG7znWMwUDzJiXow==",
++			"license": "MIT"
++		},
++		"node_modules/serialize-error": {
++			"version": "7.0.1",
++			"resolved": "https://registry.npmjs.org/serialize-error/-/serialize-error-7.0.1.tgz",
++			"integrity": "sha512-8I8TjW5KMOKsZQTvoxjuSIa7foAwPWGOts+6o7sgjz41/qMD9VQHEDxi6PBvK2l0MXUmqZyNpUK+T2tQaaElvw==",
++			"license": "MIT",
++			"dependencies": {
++				"type-fest": "^0.13.1"
++			},
++			"engines": {
++				"node": ">=10"
++			},
++			"funding": {
++				"url": "https://github.com/sponsors/sindresorhus"
++			}
++		},
++		"node_modules/serialize-error/node_modules/type-fest": {
++			"version": "0.13.1",
++			"resolved": "https://registry.npmjs.org/type-fest/-/type-fest-0.13.1.tgz",
++			"integrity": "sha512-34R7HTnG0XIJcBSn5XhDd7nNFPRcXYRZrBB2O2jdKqYODldSzBAqzsWoZYYvduky73toYS/ESqxPvkDf/F0XMg==",
++			"license": "(MIT OR CC0-1.0)",
++			"engines": {
++				"node": ">=10"
++			},
++			"funding": {
++				"url": "https://github.com/sponsors/sindresorhus"
++			}
++		},
+ 		"node_modules/set-cookie-parser": {
+ 			"version": "2.6.0",
+ 			"resolved": "https://registry.npmjs.org/set-cookie-parser/-/set-cookie-parser-2.6.0.tgz",
+@@ -10997,6 +10998,7 @@
+ 			"version": "2.0.0",
+ 			"resolved": "https://registry.npmjs.org/shebang-command/-/shebang-command-2.0.0.tgz",
+ 			"integrity": "sha512-kHxr2zZpYtdmrN1qDjrrX/Z1rR1kG8Dx+gkpK1G4eXmvXswmcE1hTWBWYUzlraYw1/yZp6YuDY77YtvbN0dmDA==",
++			"dev": true,
+ 			"dependencies": {
+ 				"shebang-regex": "^3.0.0"
+ 			},
+@@ -11008,6 +11010,7 @@
+ 			"version": "3.0.0",
+ 			"resolved": "https://registry.npmjs.org/shebang-regex/-/shebang-regex-3.0.0.tgz",
+ 			"integrity": "sha512-7++dFhtcx3353uBaq8DDR4NuxBetBzC7ZQOhmTQInHEd6bSrXdiEyzCvG07Z44UYdLShWUyXt5M/yhz8ekcb1A==",
++			"dev": true,
+ 			"engines": {
+ 				"node": ">=8"
+ 			}
+@@ -11040,6 +11043,7 @@
+ 			"version": "4.1.0",
+ 			"resolved": "https://registry.npmjs.org/signal-exit/-/signal-exit-4.1.0.tgz",
+ 			"integrity": "sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw==",
++			"dev": true,
+ 			"engines": {
+ 				"node": ">=14"
+ 			},
+@@ -11164,8 +11168,7 @@
+ 		"node_modules/sprintf-js": {
+ 			"version": "1.1.3",
+ 			"resolved": "https://registry.npmjs.org/sprintf-js/-/sprintf-js-1.1.3.tgz",
+-			"integrity": "sha512-Oo+0REFV59/rz3gfJNKQiBlwfHaSESl1pcGyABQsnnIfWOFt6JNj5gCog2U6MLZ//IGYD+nA8nI+mTShREReaA==",
+-			"dev": true
++			"integrity": "sha512-Oo+0REFV59/rz3gfJNKQiBlwfHaSESl1pcGyABQsnnIfWOFt6JNj5gCog2U6MLZ//IGYD+nA8nI+mTShREReaA=="
+ 		},
+ 		"node_modules/sshpk": {
+ 			"version": "1.18.0",
+@@ -11250,82 +11253,11 @@
+ 				"safe-buffer": "~5.1.0"
+ 			}
+ 		},
+-		"node_modules/string-width": {
+-			"version": "5.1.2",
+-			"resolved": "https://registry.npmjs.org/string-width/-/string-width-5.1.2.tgz",
+-			"integrity": "sha512-HnLOCR3vjcY8beoNLtcjZ5/nxn2afmME6lhrDrebokqMap+XbeW8n9TXpPDOqdGK5qcI3oT0GKTW6wC7EMiVqA==",
+-			"dependencies": {
+-				"eastasianwidth": "^0.2.0",
+-				"emoji-regex": "^9.2.2",
+-				"strip-ansi": "^7.0.1"
+-			},
+-			"engines": {
+-				"node": ">=12"
+-			},
+-			"funding": {
+-				"url": "https://github.com/sponsors/sindresorhus"
+-			}
+-		},
+-		"node_modules/string-width-cjs": {
+-			"name": "string-width",
+-			"version": "4.2.3",
+-			"resolved": "https://registry.npmjs.org/string-width/-/string-width-4.2.3.tgz",
+-			"integrity": "sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==",
+-			"dependencies": {
+-				"emoji-regex": "^8.0.0",
+-				"is-fullwidth-code-point": "^3.0.0",
+-				"strip-ansi": "^6.0.1"
+-			},
+-			"engines": {
+-				"node": ">=8"
+-			}
+-		},
+-		"node_modules/string-width-cjs/node_modules/emoji-regex": {
+-			"version": "8.0.0",
+-			"resolved": "https://registry.npmjs.org/emoji-regex/-/emoji-regex-8.0.0.tgz",
+-			"integrity": "sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A=="
+-		},
+-		"node_modules/string-width/node_modules/ansi-regex": {
+-			"version": "6.0.1",
+-			"resolved": "https://registry.npmjs.org/ansi-regex/-/ansi-regex-6.0.1.tgz",
+-			"integrity": "sha512-n5M855fKb2SsfMIiFFoVrABHJC8QtHwVx+mHWP3QcEqBHYienj5dHSgjbxtC0WEZXYt4wcD6zrQElDPhFuZgfA==",
+-			"engines": {
+-				"node": ">=12"
+-			},
+-			"funding": {
+-				"url": "https://github.com/chalk/ansi-regex?sponsor=1"
+-			}
+-		},
+-		"node_modules/string-width/node_modules/strip-ansi": {
+-			"version": "7.1.0",
+-			"resolved": "https://registry.npmjs.org/strip-ansi/-/strip-ansi-7.1.0.tgz",
+-			"integrity": "sha512-iq6eVVI64nQQTRYq2KtEg2d2uU7LElhTJwsH4YzIHZshxlgZms/wIc4VoDQTlG/IvVIrBKG06CrZnp0qv7hkcQ==",
+-			"dependencies": {
+-				"ansi-regex": "^6.0.1"
+-			},
+-			"engines": {
+-				"node": ">=12"
+-			},
+-			"funding": {
+-				"url": "https://github.com/chalk/strip-ansi?sponsor=1"
+-			}
+-		},
+ 		"node_modules/strip-ansi": {
+ 			"version": "6.0.1",
+ 			"resolved": "https://registry.npmjs.org/strip-ansi/-/strip-ansi-6.0.1.tgz",
+ 			"integrity": "sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A==",
+-			"dependencies": {
+-				"ansi-regex": "^5.0.1"
+-			},
+-			"engines": {
+-				"node": ">=8"
+-			}
+-		},
+-		"node_modules/strip-ansi-cjs": {
+-			"name": "strip-ansi",
+-			"version": "6.0.1",
+-			"resolved": "https://registry.npmjs.org/strip-ansi/-/strip-ansi-6.0.1.tgz",
+-			"integrity": "sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A==",
++			"dev": true,
+ 			"dependencies": {
+ 				"ansi-regex": "^5.0.1"
+ 			},
+@@ -12959,6 +12891,7 @@
+ 			"version": "2.0.2",
+ 			"resolved": "https://registry.npmjs.org/which/-/which-2.0.2.tgz",
+ 			"integrity": "sha512-BLI3Tl1TW3Pvl70l3yq3Y64i+awpwXqsGBYWkkqMtnbXgrMD+yj7rhW0kuEDxzJaYXGjEW5ogapKNMEKNMjibA==",
++			"dev": true,
+ 			"dependencies": {
+ 				"isexe": "^2.0.0"
+ 			},
+@@ -12985,93 +12918,6 @@
+ 				"node": ">=8"
+ 			}
+ 		},
+-		"node_modules/wrap-ansi": {
+-			"version": "8.1.0",
+-			"resolved": "https://registry.npmjs.org/wrap-ansi/-/wrap-ansi-8.1.0.tgz",
+-			"integrity": "sha512-si7QWI6zUMq56bESFvagtmzMdGOtoxfR+Sez11Mobfc7tm+VkUckk9bW2UeffTGVUbOksxmSw0AA2gs8g71NCQ==",
+-			"dependencies": {
+-				"ansi-styles": "^6.1.0",
+-				"string-width": "^5.0.1",
+-				"strip-ansi": "^7.0.1"
+-			},
+-			"engines": {
+-				"node": ">=12"
+-			},
+-			"funding": {
+-				"url": "https://github.com/chalk/wrap-ansi?sponsor=1"
+-			}
+-		},
+-		"node_modules/wrap-ansi-cjs": {
+-			"name": "wrap-ansi",
+-			"version": "7.0.0",
+-			"resolved": "https://registry.npmjs.org/wrap-ansi/-/wrap-ansi-7.0.0.tgz",
+-			"integrity": "sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==",
+-			"dependencies": {
+-				"ansi-styles": "^4.0.0",
+-				"string-width": "^4.1.0",
+-				"strip-ansi": "^6.0.0"
+-			},
+-			"engines": {
+-				"node": ">=10"
+-			},
+-			"funding": {
+-				"url": "https://github.com/chalk/wrap-ansi?sponsor=1"
+-			}
+-		},
+-		"node_modules/wrap-ansi-cjs/node_modules/emoji-regex": {
+-			"version": "8.0.0",
+-			"resolved": "https://registry.npmjs.org/emoji-regex/-/emoji-regex-8.0.0.tgz",
+-			"integrity": "sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A=="
+-		},
+-		"node_modules/wrap-ansi-cjs/node_modules/string-width": {
+-			"version": "4.2.3",
+-			"resolved": "https://registry.npmjs.org/string-width/-/string-width-4.2.3.tgz",
+-			"integrity": "sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==",
+-			"dependencies": {
+-				"emoji-regex": "^8.0.0",
+-				"is-fullwidth-code-point": "^3.0.0",
+-				"strip-ansi": "^6.0.1"
+-			},
+-			"engines": {
+-				"node": ">=8"
+-			}
+-		},
+-		"node_modules/wrap-ansi/node_modules/ansi-regex": {
+-			"version": "6.0.1",
+-			"resolved": "https://registry.npmjs.org/ansi-regex/-/ansi-regex-6.0.1.tgz",
+-			"integrity": "sha512-n5M855fKb2SsfMIiFFoVrABHJC8QtHwVx+mHWP3QcEqBHYienj5dHSgjbxtC0WEZXYt4wcD6zrQElDPhFuZgfA==",
+-			"engines": {
+-				"node": ">=12"
+-			},
+-			"funding": {
+-				"url": "https://github.com/chalk/ansi-regex?sponsor=1"
+-			}
+-		},
+-		"node_modules/wrap-ansi/node_modules/ansi-styles": {
+-			"version": "6.2.1",
+-			"resolved": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-6.2.1.tgz",
+-			"integrity": "sha512-bN798gFfQX+viw3R7yrGWRqnrN2oRkEkUjjl4JNn4E8GxxbjtG3FbrEIIY3l8/hrwUwIeCZvi4QuOTP4MErVug==",
+-			"engines": {
+-				"node": ">=12"
+-			},
+-			"funding": {
+-				"url": "https://github.com/chalk/ansi-styles?sponsor=1"
+-			}
+-		},
+-		"node_modules/wrap-ansi/node_modules/strip-ansi": {
+-			"version": "7.1.0",
+-			"resolved": "https://registry.npmjs.org/strip-ansi/-/strip-ansi-7.1.0.tgz",
+-			"integrity": "sha512-iq6eVVI64nQQTRYq2KtEg2d2uU7LElhTJwsH4YzIHZshxlgZms/wIc4VoDQTlG/IvVIrBKG06CrZnp0qv7hkcQ==",
+-			"dependencies": {
+-				"ansi-regex": "^6.0.1"
+-			},
+-			"engines": {
+-				"node": ">=12"
+-			},
+-			"funding": {
+-				"url": "https://github.com/chalk/strip-ansi?sponsor=1"
+-			}
+-		},
+ 		"node_modules/wrappy": {
+ 			"version": "1.0.2",
+ 			"resolved": "https://registry.npmjs.org/wrappy/-/wrappy-1.0.2.tgz",
+diff --git a/package.json b/package.json
+index 0a982196e..6e7ffef6c 100644
+--- a/package.json
++++ b/package.json
+@@ -93,6 +93,7 @@
+ 		"kokoro-js": "^1.1.1",
+ 		"marked": "^9.1.0",
+ 		"mermaid": "^11.6.0",
++		"onnxruntime-node": "^1.22.0-rev",
+ 		"paneforge": "^0.0.6",
+ 		"panzoom": "^9.4.3",
+ 		"prosemirror-commands": "^1.6.0",
+diff --git a/src/app.html b/src/app.html
+index d19f3d227..0e4b2244d 100644
+--- a/src/app.html
++++ b/src/app.html
+@@ -1,139 +1,113 @@
+ <!doctype html>
+ <html lang="en">
+-	<head>
+-		<meta charset="utf-8" />
+-		<link rel="icon" type="image/png" href="/static/favicon.png" />
+-		<link rel="icon" type="image/png" href="/static/favicon-96x96.png" sizes="96x96" />
+-		<link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+-		<link rel="shortcut icon" href="/static/favicon.ico" />
+-		<link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png" />
+-		<meta name="apple-mobile-web-app-title" content="Open WebUI" />
+-
+-		<link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
+-		<meta
+-			name="viewport"
+-			content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+-		/>
+-		<meta name="theme-color" content="#171717" />
+-		<meta name="robots" content="noindex,nofollow" />
+-		<meta name="description" content="Open WebUI" />
+-		<link
+-			rel="search"
+-			type="application/opensearchdescription+xml"
+-			title="Open WebUI"
+-			href="/opensearch.xml"
+-		/>
+-		<script src="/static/loader.js" defer></script>
+-
+-		<script>
+-			function resizeIframe(obj) {
+-				obj.style.height = obj.contentWindow.document.documentElement.scrollHeight + 'px';
+-			}
+-		</script>
+ 
+-		<script>
+-			// On page load or when changing themes, best to add inline in `head` to avoid FOUC
+-			(() => {
+-				const metaThemeColorTag = document.querySelector('meta[name="theme-color"]');
+-				const prefersDarkTheme = window.matchMedia('(prefers-color-scheme: dark)').matches;
++<head>
++	<meta charset="utf-8" />
++	<link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png" />
++	<meta name="apple-mobile-web-app-title" content="Open WebUI" />
++
++	<link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
++	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
++	<meta name="theme-color" content="#171717" />
++	<meta name="robots" content="noindex,nofollow" />
++	<meta name="description" content="Open WebUI" />
++	<link rel="search" type="application/opensearchdescription+xml" title="Open WebUI" href="/opensearch.xml" />
++	<script src="/static/loader.js" defer></script>
++
++	<script>
++		function resizeIframe(obj) {
++			obj.style.height = obj.contentWindow.document.documentElement.scrollHeight + 'px';
++		}
++	</script>
+ 
+-				if (!localStorage?.theme) {
+-					localStorage.theme = 'system';
+-				}
++	<script>
++		// On page load or when changing themes, best to add inline in `head` to avoid FOUC
++		(() => {
++			const metaThemeColorTag = document.querySelector('meta[name="theme-color"]');
++			const prefersDarkTheme = window.matchMedia('(prefers-color-scheme: dark)').matches;
+ 
+-				if (localStorage.theme === 'system') {
+-					document.documentElement.classList.add(prefersDarkTheme ? 'dark' : 'light');
+-					metaThemeColorTag.setAttribute('content', prefersDarkTheme ? '#171717' : '#ffffff');
+-				} else if (localStorage.theme === 'oled-dark') {
+-					document.documentElement.style.setProperty('--color-gray-800', '#101010');
+-					document.documentElement.style.setProperty('--color-gray-850', '#050505');
+-					document.documentElement.style.setProperty('--color-gray-900', '#000000');
+-					document.documentElement.style.setProperty('--color-gray-950', '#000000');
+-					document.documentElement.classList.add('dark');
+-					metaThemeColorTag.setAttribute('content', '#000000');
+-				} else if (localStorage.theme === 'light') {
+-					document.documentElement.classList.add('light');
+-					metaThemeColorTag.setAttribute('content', '#ffffff');
+-				} else if (localStorage.theme === 'her') {
+-					document.documentElement.classList.add('dark');
+-					document.documentElement.classList.add('her');
+-					metaThemeColorTag.setAttribute('content', '#983724');
+-				} else {
+-					document.documentElement.classList.add('dark');
+-					metaThemeColorTag.setAttribute('content', '#171717');
+-				}
++			if (!localStorage?.theme) {
++				localStorage.theme = 'system';
++			}
++
++			if (localStorage.theme === 'system') {
++				document.documentElement.classList.add(prefersDarkTheme ? 'dark' : 'light');
++				metaThemeColorTag.setAttribute('content', prefersDarkTheme ? '#171717' : '#ffffff');
++			} else if (localStorage.theme === 'oled-dark') {
++				document.documentElement.style.setProperty('--color-gray-800', '#101010');
++				document.documentElement.style.setProperty('--color-gray-850', '#050505');
++				document.documentElement.style.setProperty('--color-gray-900', '#000000');
++				document.documentElement.style.setProperty('--color-gray-950', '#000000');
++				document.documentElement.classList.add('dark');
++				metaThemeColorTag.setAttribute('content', '#000000');
++			} else if (localStorage.theme === 'light') {
++				document.documentElement.classList.add('light');
++				metaThemeColorTag.setAttribute('content', '#ffffff');
++			} else if (localStorage.theme === 'her') {
++				document.documentElement.classList.add('dark');
++				document.documentElement.classList.add('her');
++				metaThemeColorTag.setAttribute('content', '#983724');
++			} else {
++				document.documentElement.classList.add('dark');
++				metaThemeColorTag.setAttribute('content', '#171717');
++			}
+ 
+-				window.matchMedia('(prefers-color-scheme: dark)').addListener((e) => {
+-					if (localStorage.theme === 'system') {
+-						if (e.matches) {
+-							document.documentElement.classList.add('dark');
+-							document.documentElement.classList.remove('light');
+-							metaThemeColorTag.setAttribute('content', '#171717');
+-						} else {
+-							document.documentElement.classList.add('light');
+-							document.documentElement.classList.remove('dark');
+-							metaThemeColorTag.setAttribute('content', '#ffffff');
+-						}
++			window.matchMedia('(prefers-color-scheme: dark)').addListener((e) => {
++				if (localStorage.theme === 'system') {
++					if (e.matches) {
++						document.documentElement.classList.add('dark');
++						document.documentElement.classList.remove('light');
++						metaThemeColorTag.setAttribute('content', '#171717');
++					} else {
++						document.documentElement.classList.add('light');
++						document.documentElement.classList.remove('dark');
++						metaThemeColorTag.setAttribute('content', '#ffffff');
+ 					}
+-				});
++				}
++			});
+ 
+-				function setSplashImage() {
+-					const logo = document.getElementById('logo');
+-					const isDarkMode = document.documentElement.classList.contains('dark');
++			function setSplashImage() {
++				const logo = document.getElementById('logo');
++				const isDarkMode = document.documentElement.classList.contains('dark');
+ 
+-					if (isDarkMode) {
+-						const darkImage = new Image();
+-						darkImage.src = '/static/splash-dark.png';
++				if (isDarkMode) {
++					const darkImage = new Image();
++					darkImage.src = '/static/splash-dark.png';
+ 
+-						darkImage.onload = () => {
+-							logo.src = '/static/splash-dark.png';
+-							logo.style.filter = ''; // Ensure no inversion is applied if splash-dark.png exists
+-						};
++					darkImage.onload = () => {
++						logo.src = '/static/splash-dark.png';
++						logo.style.filter = ''; // Ensure no inversion is applied if splash-dark.png exists
++					};
+ 
+-						darkImage.onerror = () => {
+-							logo.style.filter = 'invert(1)'; // Invert image if splash-dark.png is missing
+-						};
+-					}
++					darkImage.onerror = () => {
++						logo.style.filter = 'invert(1)'; // Invert image if splash-dark.png is missing
++					};
+ 				}
++			}
+ 
+-				// Runs after classes are assigned
+-				window.onload = setSplashImage;
+-			})();
+-		</script>
++			// Runs after classes are assigned
++			window.onload = setSplashImage;
++		})();
++	</script>
+ 
+-		<title>Open WebUI</title>
++	<title>Open WebUI</title>
+ 
+-		%sveltekit.head%
+-	</head>
++	%sveltekit.head%
++</head>
+ 
+-	<body data-sveltekit-preload-data="hover">
+-		<div style="display: contents">%sveltekit.body%</div>
++<body data-sveltekit-preload-data="hover">
++	<div style="display: contents">%sveltekit.body%</div>
+ 
+-		<div
+-			id="splash-screen"
+-			style="position: fixed; z-index: 100; top: 0; left: 0; width: 100%; height: 100%"
+-		>
+-			<style type="text/css" nonce="">
+-				html {
+-					overflow-y: scroll !important;
+-				}
+-			</style>
++	<div id="splash-screen" style="position: fixed; z-index: 100; top: 0; left: 0; width: 100%; height: 100%">
++		<style type="text/css" nonce="">
++			html {
++				overflow-y: scroll !important;
++			}
++		</style>
+ 
+-			<img
+-				id="logo"
+-				style="
+-					position: absolute;
+-					width: auto;
+-					height: 6rem;
+-					top: 44%;
+-					left: 50%;
+-					transform: translateX(-50%);
+-				"
+-				src="/static/splash.png"
+-			/>
++		<div class="spinner"></div>
+ 
+-			<div
+-				style="
++		<div style="
+ 					position: absolute;
+ 					top: 33%;
+ 					left: 50%;
+@@ -144,47 +118,35 @@
+ 					display: flex;
+ 					flex-direction: column;
+ 					align-items: center;
+-				"
+-			>
+-				<img
+-					id="logo-her"
+-					style="width: auto; height: 13rem"
+-					src="/static/splash.png"
+-					class="animate-pulse-fast"
+-				/>
+-
+-				<div style="position: relative; width: 24rem; margin-top: 0.5rem">
+-					<div
+-						id="progress-background"
+-						style="
++				">
++			<img id="logo-her" style="width: auto; height: 13rem" src="/static/splash.png" class="animate-pulse-fast" />
++
++			<div style="position: relative; width: 24rem; margin-top: 0.5rem">
++				<div id="progress-background" style="
+ 							position: absolute;
+ 							width: 100%;
+ 							height: 0.75rem;
+ 
+ 							border-radius: 9999px;
+ 							background-color: #fafafa9a;
+-						"
+-					></div>
++						"></div>
+ 
+-					<div
+-						id="progress-bar"
+-						style="
++				<div id="progress-bar" style="
+ 							position: absolute;
+ 							width: 0%;
+ 							height: 0.75rem;
+ 							border-radius: 9999px;
+ 							background-color: #fff;
+-						"
+-						class="bg-white"
+-					></div>
+-				</div>
++						" class="bg-white"></div>
+ 			</div>
++		</div>
+ 
+-			<!-- <span style="position: absolute; bottom: 32px; left: 50%; margin: -36px 0 0 -36px">
++		<!-- <span style="position: absolute; bottom: 32px; left: 50%; margin: -36px 0 0 -36px">
+ 				Footer content
+ 			</span> -->
+-		</div>
+-	</body>
++	</div>
++</body>
++
+ </html>
+ 
+ <style type="text/css" nonce="">
+@@ -192,6 +154,31 @@
+ 		overflow-y: hidden !important;
+ 	}
+ 
++	.spinner {
++		position: absolute;
++		top: 50%;
++		left: 50%;
++		transform: translate(-50%, -50%);
++		width: 80px;
++		height: 80px;
++		border: 8px solid rgba(0, 123, 255, 0.2);
++		/* 淡蓝色边框 */
++		border-top: 8px solid #007bff;
++		/* 深蓝色顶部 */
++		border-radius: 50%;
++		animation: spin 1s linear infinite;
++	}
++
++	@keyframes spin {
++		0% {
++			transform: rotate(0deg);
++		}
++
++		100% {
++			transform: rotate(360deg);
++		}
++	}
++
+ 	#splash-screen {
+ 		background: #fff;
+ 	}
+@@ -252,4 +239,4 @@
+ 	.animate-pulse-fast {
+ 		animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+ 	}
+-</style>
++</style>
+\ No newline at end of file
+diff --git a/src/lib/apis/index.ts b/src/lib/apis/index.ts
+index 0929e0a69..4fe9c9c48 100644
+--- a/src/lib/apis/index.ts
++++ b/src/lib/apis/index.ts
+@@ -1163,6 +1163,7 @@ export const updatePipelineValves = async (
+ 	return res;
+ };
+ 
++
+ export const getBackendConfig = async () => {
+ 	let error = null;
+ 
+@@ -1190,6 +1191,100 @@ export const getBackendConfig = async () => {
+ 	return res;
+ };
+ 
++
++// export const getBackendConfig = async () => {
++
++// 	return {
++// 		"status": true,
++// 		"name": "OPEA",
++// 		"version": "0.5.10",
++// 		"default_locale": "",
++// 		"oauth": {
++// 			"providers": {}
++// 		},
++// 		"features": {
++// 			"auth": true,
++// 			"auth_trusted_header": false,
++// 			"enable_ldap": false,
++// 			"enable_api_key": true,
++// 			"enable_signup": true,
++// 			"enable_login_form": true,
++// 			"enable_websocket": true,
++// 			"enable_channels": false,
++// 			"enable_web_search": true,
++// 			"enable_google_drive_integration": false,
++// 			"enable_image_generation": false,
++// 			"enable_community_sharing": true,
++// 			"enable_message_rating": true,
++// 			"enable_admin_export": true,
++// 			"enable_admin_chat_access": true
++// 		},
++// 		"default_models": "",
++// 		"default_prompt_suggestions": [
++// 			{
++// 				"title": [
++// 					"Stand out on socials",
++// 					"What are some tips for writing a great LinkedIn post?"
++// 				],
++// 				"content": "What are some tips for writing a great LinkedIn post? Give strong examples for posts in various scenarios and explain how each strategy will help me stand out."
++// 			},
++// 			{
++// 				"title": [
++// 					"Going on holiday?",
++// 					"Write some funny Out of Office email responses to use while I'm on vacation from  January 25 to February 9"
++// 				],
++// 				"content": "Write some funny Out of Office email responses to use while I'm on vacation from . Also, include steps for how to set this in Outlook."
++// 			},
++// 			{
++// 				"title": [
++// 					"Interview warning signs",
++// 					"What are some red flags to watch out for during an interview?"
++// 				],
++// 				"content": "What are 5 warning signs to watch out for during an interview? For each, give examples and suggest what they might reveal about a job. Then help me understand how I can prepare better to spot these red flags."
++// 			},
++			
++// 		],
++// 		"audio": {
++// 			"tts": {
++// 				"engine": "",
++// 				"voice": "alloy",
++// 				"split_on": "punctuation"
++// 			},
++// 			"stt": {
++// 				"engine": ""
++// 			}
++// 		},
++// 		"file": {
++// 			"max_size": null,
++// 			"max_count": null
++// 		},
++// 		"permissions": {
++// 			"workspace": {
++// 				"models": false,
++// 				"knowledge": false,
++// 				"prompts": false,
++// 				"tools": false
++// 			},
++// 			"chat": {
++// 				"controls": true,
++// 				"file_upload": true,
++// 				"delete": true,
++// 				"edit": true,
++// 				"temporary": true
++// 			},
++// 			"features": {
++// 				"web_search": true,
++// 				"image_generation": true,
++// 				"code_interpreter": true
++// 			}
++// 		},
++// 		"google_drive": {
++// 			"client_id": "",
++// 			"api_key": ""
++// 		}
++// 	}
++// };
++
+ export const getChangelog = async () => {
+ 	let error = null;
+ 
+diff --git a/src/lib/components/admin/Settings.svelte b/src/lib/components/admin/Settings.svelte
+index c26604d6c..4ba7c508e 100644
+--- a/src/lib/components/admin/Settings.svelte
++++ b/src/lib/components/admin/Settings.svelte
+@@ -11,6 +11,7 @@
+ 	import Audio from './Settings/Audio.svelte';
+ 	import Images from './Settings/Images.svelte';
+ 	import Interface from './Settings/Interface.svelte';
++	import ProjectInfo from './Settings/ProjectInfo.svelte';
+ 	import Models from './Settings/Models.svelte';
+ 	import Connections from './Settings/Connections.svelte';
+ 	import Documents from './Settings/Documents.svelte';
+@@ -121,7 +122,7 @@
+ 			<div class=" self-center">{$i18n.t('Models')}</div>
+ 		</button>
+ 
+-		<button
++		<!-- <button
+ 			class="px-0.5 py-1 min-w-fit rounded-lg flex-1 md:flex-none flex text-left transition {selectedTab ===
+ 			'evaluations'
+ 				? ''
+@@ -134,9 +135,9 @@
+ 				<DocumentChartBar />
+ 			</div>
+ 			<div class=" self-center">{$i18n.t('Evaluations')}</div>
+-		</button>
++		</button> -->
+ 
+-		<button
++		<!-- <button
+ 			class="px-0.5 py-1 min-w-fit rounded-lg flex-1 md:flex-none flex text-left transition {selectedTab ===
+ 			'tools'
+ 				? ''
+@@ -160,7 +161,7 @@
+ 				</svg>
+ 			</div>
+ 			<div class=" self-center">{$i18n.t('Tools')}</div>
+-		</button>
++		</button> -->
+ 
+ 		<button
+ 			class="px-0.5 py-1 min-w-fit rounded-lg flex-1 md:flex-none flex text-left transition {selectedTab ===
+@@ -192,56 +193,6 @@
+ 			<div class=" self-center">{$i18n.t('Documents')}</div>
+ 		</button>
+ 
+-		<button
+-			class="px-0.5 py-1 min-w-fit rounded-lg flex-1 md:flex-none flex text-left transition {selectedTab ===
+-			'web'
+-				? ''
+-				: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
+-			on:click={() => {
+-				selectedTab = 'web';
+-			}}
+-		>
+-			<div class=" self-center mr-2">
+-				<svg
+-					xmlns="http://www.w3.org/2000/svg"
+-					viewBox="0 0 24 24"
+-					fill="currentColor"
+-					class="w-4 h-4"
+-				>
+-					<path
+-						d="M21.721 12.752a9.711 9.711 0 0 0-.945-5.003 12.754 12.754 0 0 1-4.339 2.708 18.991 18.991 0 0 1-.214 4.772 17.165 17.165 0 0 0 5.498-2.477ZM14.634 15.55a17.324 17.324 0 0 0 .332-4.647c-.952.227-1.945.347-2.966.347-1.021 0-2.014-.12-2.966-.347a17.515 17.515 0 0 0 .332 4.647 17.385 17.385 0 0 0 5.268 0ZM9.772 17.119a18.963 18.963 0 0 0 4.456 0A17.182 17.182 0 0 1 12 21.724a17.18 17.18 0 0 1-2.228-4.605ZM7.777 15.23a18.87 18.87 0 0 1-.214-4.774 12.753 12.753 0 0 1-4.34-2.708 9.711 9.711 0 0 0-.944 5.004 17.165 17.165 0 0 0 5.498 2.477ZM21.356 14.752a9.765 9.765 0 0 1-7.478 6.817 18.64 18.64 0 0 0 1.988-4.718 18.627 18.627 0 0 0 5.49-2.098ZM2.644 14.752c1.682.971 3.53 1.688 5.49 2.099a18.64 18.64 0 0 0 1.988 4.718 9.765 9.765 0 0 1-7.478-6.816ZM13.878 2.43a9.755 9.755 0 0 1 6.116 3.986 11.267 11.267 0 0 1-3.746 2.504 18.63 18.63 0 0 0-2.37-6.49ZM12 2.276a17.152 17.152 0 0 1 2.805 7.121c-.897.23-1.837.353-2.805.353-.968 0-1.908-.122-2.805-.353A17.151 17.151 0 0 1 12 2.276ZM10.122 2.43a18.629 18.629 0 0 0-2.37 6.49 11.266 11.266 0 0 1-3.746-2.504 9.754 9.754 0 0 1 6.116-3.985Z"
+-					/>
+-				</svg>
+-			</div>
+-			<div class=" self-center">{$i18n.t('Web Search')}</div>
+-		</button>
+-
+-		<button
+-			class="px-0.5 py-1 min-w-fit rounded-lg flex-1 md:flex-none flex text-left transition {selectedTab ===
+-			'code-execution'
+-				? ''
+-				: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
+-			on:click={() => {
+-				selectedTab = 'code-execution';
+-			}}
+-		>
+-			<div class=" self-center mr-2">
+-				<svg
+-					xmlns="http://www.w3.org/2000/svg"
+-					viewBox="0 0 16 16"
+-					fill="currentColor"
+-					class="size-4"
+-				>
+-					<path
+-						fill-rule="evenodd"
+-						d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm2.22 1.97a.75.75 0 0 0 0 1.06l.97.97-.97.97a.75.75 0 1 0 1.06 1.06l1.5-1.5a.75.75 0 0 0 0-1.06l-1.5-1.5a.75.75 0 0 0-1.06 0ZM8.75 8.5a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5h-2.5Z"
+-						clip-rule="evenodd"
+-					/>
+-				</svg>
+-			</div>
+-			<div class=" self-center">{$i18n.t('Code Execution')}</div>
+-		</button>
+-
+ 		<button
+ 			class="px-0.5 py-1 min-w-fit rounded-lg flex-1 md:flex-none flex text-left transition {selectedTab ===
+ 			'interface'
+@@ -267,41 +218,13 @@
+ 			</div>
+ 			<div class=" self-center">{$i18n.t('Interface')}</div>
+ 		</button>
+-
+-		<button
+-			class="px-0.5 py-1 min-w-fit rounded-lg flex-1 md:flex-none flex text-left transition {selectedTab ===
+-			'audio'
+-				? ''
+-				: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
+-			on:click={() => {
+-				selectedTab = 'audio';
+-			}}
+-		>
+-			<div class=" self-center mr-2">
+-				<svg
+-					xmlns="http://www.w3.org/2000/svg"
+-					viewBox="0 0 16 16"
+-					fill="currentColor"
+-					class="w-4 h-4"
+-				>
+-					<path
+-						d="M7.557 2.066A.75.75 0 0 1 8 2.75v10.5a.75.75 0 0 1-1.248.56L3.59 11H2a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h1.59l3.162-2.81a.75.75 0 0 1 .805-.124ZM12.95 3.05a.75.75 0 1 0-1.06 1.06 5.5 5.5 0 0 1 0 7.78.75.75 0 1 0 1.06 1.06 7 7 0 0 0 0-9.9Z"
+-					/>
+-					<path
+-						d="M10.828 5.172a.75.75 0 1 0-1.06 1.06 2.5 2.5 0 0 1 0 3.536.75.75 0 1 0 1.06 1.06 4 4 0 0 0 0-5.656Z"
+-					/>
+-				</svg>
+-			</div>
+-			<div class=" self-center">{$i18n.t('Audio')}</div>
+-		</button>
+-
+-		<button
++<button
+ 			class="px-0.5 py-1 min-w-fit rounded-lg flex-1 md:flex-none flex text-left transition {selectedTab ===
+-			'images'
++			'Project'
+ 				? ''
+ 				: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
+ 			on:click={() => {
+-				selectedTab = 'images';
++				selectedTab = 'Project';
+ 			}}
+ 		>
+ 			<div class=" self-center mr-2">
+@@ -313,70 +236,12 @@
+ 				>
+ 					<path
+ 						fill-rule="evenodd"
+-						d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm10.5 5.707a.5.5 0 0 0-.146-.353l-1-1a.5.5 0 0 0-.708 0L9.354 9.646a.5.5 0 0 1-.708 0L6.354 7.354a.5.5 0 0 0-.708 0l-2 2a.5.5 0 0 0-.146.353V12a.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5V9.707ZM12 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"
++						d="M2 4.25A2.25 2.25 0 0 1 4.25 2h7.5A2.25 2.25 0 0 1 14 4.25v5.5A2.25 2.25 0 0 1 11.75 12h-1.312c.1.128.21.248.328.36a.75.75 0 0 1 .234.545v.345a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1-.75-.75v-.345a.75.75 0 0 1 .234-.545c.118-.111.228-.232.328-.36H4.25A2.25 2.25 0 0 1 2 9.75v-5.5Zm2.25-.75a.75.75 0 0 0-.75.75v4.5c0 .414.336.75.75.75h7.5a.75.75 0 0 0 .75-.75v-4.5a.75.75 0 0 0-.75-.75h-7.5Z"
+ 						clip-rule="evenodd"
+ 					/>
+ 				</svg>
+ 			</div>
+-			<div class=" self-center">{$i18n.t('Images')}</div>
+-		</button>
+-
+-		<button
+-			class="px-0.5 py-1 min-w-fit rounded-lg flex-1 md:flex-none flex text-left transition {selectedTab ===
+-			'pipelines'
+-				? ''
+-				: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
+-			on:click={() => {
+-				selectedTab = 'pipelines';
+-			}}
+-		>
+-			<div class=" self-center mr-2">
+-				<svg
+-					xmlns="http://www.w3.org/2000/svg"
+-					viewBox="0 0 24 24"
+-					fill="currentColor"
+-					class="size-4"
+-				>
+-					<path
+-						d="M11.644 1.59a.75.75 0 0 1 .712 0l9.75 5.25a.75.75 0 0 1 0 1.32l-9.75 5.25a.75.75 0 0 1-.712 0l-9.75-5.25a.75.75 0 0 1 0-1.32l9.75-5.25Z"
+-					/>
+-					<path
+-						d="m3.265 10.602 7.668 4.129a2.25 2.25 0 0 0 2.134 0l7.668-4.13 1.37.739a.75.75 0 0 1 0 1.32l-9.75 5.25a.75.75 0 0 1-.71 0l-9.75-5.25a.75.75 0 0 1 0-1.32l1.37-.738Z"
+-					/>
+-					<path
+-						d="m10.933 19.231-7.668-4.13-1.37.739a.75.75 0 0 0 0 1.32l9.75 5.25c.221.12.489.12.71 0l9.75-5.25a.75.75 0 0 0 0-1.32l-1.37-.738-7.668 4.13a2.25 2.25 0 0 1-2.134-.001Z"
+-					/>
+-				</svg>
+-			</div>
+-			<div class=" self-center">{$i18n.t('Pipelines')}</div>
+-		</button>
+-
+-		<button
+-			class="px-0.5 py-1 min-w-fit rounded-lg flex-1 md:flex-none flex text-left transition {selectedTab ===
+-			'db'
+-				? ''
+-				: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
+-			on:click={() => {
+-				selectedTab = 'db';
+-			}}
+-		>
+-			<div class=" self-center mr-2">
+-				<svg
+-					xmlns="http://www.w3.org/2000/svg"
+-					viewBox="0 0 16 16"
+-					fill="currentColor"
+-					class="w-4 h-4"
+-				>
+-					<path d="M8 7c3.314 0 6-1.343 6-3s-2.686-3-6-3-6 1.343-6 3 2.686 3 6 3Z" />
+-					<path
+-						d="M8 8.5c1.84 0 3.579-.37 4.914-1.037A6.33 6.33 0 0 0 14 6.78V8c0 1.657-2.686 3-6 3S2 9.657 2 8V6.78c.346.273.72.5 1.087.683C4.42 8.131 6.16 8.5 8 8.5Z"
+-					/>
+-					<path
+-						d="M8 12.5c1.84 0 3.579-.37 4.914-1.037.366-.183.74-.41 1.086-.684V12c0 1.657-2.686 3-6 3s-6-1.343-6-3v-1.22c.346.273.72.5 1.087.683C4.42 12.131 6.16 12.5 8 12.5Z"
+-					/>
+-				</svg>
+-			</div>
+-			<div class=" self-center">{$i18n.t('Database')}</div>
++			<div class=" self-center">{$i18n.t('Project Setting')}</div>
+ 		</button>
+ 	</div>
+ 
+@@ -398,10 +263,10 @@
+ 			/>
+ 		{:else if selectedTab === 'models'}
+ 			<Models />
+-		{:else if selectedTab === 'evaluations'}
++		<!-- {:else if selectedTab === 'evaluations'}
+ 			<Evaluations />
+ 		{:else if selectedTab === 'tools'}
+-			<Tools />
++			<Tools /> -->
+ 		{:else if selectedTab === 'documents'}
+ 			<Documents
+ 				on:save={async () => {
+@@ -435,6 +300,12 @@
+ 					toast.success($i18n.t('Settings saved successfully!'));
+ 				}}
+ 			/>
++		{:else if selectedTab === 'Project'}
++			<ProjectInfo
++				on:save={() => {
++					toast.success($i18n.t('Settings saved successfully!'));
++				}}
++			/>			
+ 		{:else if selectedTab === 'audio'}
+ 			<Audio
+ 				saveHandler={() => {
+diff --git a/src/lib/components/admin/Settings/Connections.svelte b/src/lib/components/admin/Settings/Connections.svelte
+index ac0566f22..156f24168 100644
+--- a/src/lib/components/admin/Settings/Connections.svelte
++++ b/src/lib/components/admin/Settings/Connections.svelte
+@@ -206,12 +206,12 @@
+ 	bind:show={showAddOpenAIConnectionModal}
+ 	onSubmit={addOpenAIConnectionHandler}
+ />
+-
++<!-- 
+ <AddConnectionModal
+ 	ollama
+ 	bind:show={showAddOllamaConnectionModal}
+ 	onSubmit={addOllamaConnectionHandler}
+-/>
++/> -->
+ 
+ <form class="flex flex-col h-full justify-between text-sm" on:submit|preventDefault={submitHandler}>
+ 	<div class=" overflow-y-scroll scrollbar-hidden h-full">
+@@ -284,7 +284,7 @@
+ 				</div>
+ 			</div>
+ 
+-			<hr class=" border-gray-100 dark:border-gray-850" />
++			<!-- <hr class=" border-gray-100 dark:border-gray-850" />
+ 
+ 			<div class="pr-1.5 my-2">
+ 				<div class="flex justify-between items-center text-sm mb-2">
+@@ -383,7 +383,7 @@
+ 						)}
+ 					</div>
+ 				</div>
+-			</div>
++			</div> -->
+ 		{:else}
+ 			<div class="flex h-full justify-center">
+ 				<div class="my-auto">
+diff --git a/src/lib/components/admin/Settings/Documents.svelte b/src/lib/components/admin/Settings/Documents.svelte
+index 2047a07e7..417529acb 100644
+--- a/src/lib/components/admin/Settings/Documents.svelte
++++ b/src/lib/components/admin/Settings/Documents.svelte
+@@ -131,7 +131,6 @@
+ 			reranking_model: rerankingModel
+ 		}).catch(async (error) => {
+ 			toast.error(`${error}`);
+-			await setRerankingConfig();
+ 			return null;
+ 		});
+ 		updateRerankingModelLoading = false;
+@@ -181,7 +180,7 @@
+ 		if (!RAGConfig.BYPASS_EMBEDDING_AND_RETRIEVAL) {
+ 			await embeddingModelUpdateHandler();
+ 
+-			if (RAGConfig.ENABLE_RAG_HYBRID_SEARCH) {
++			if (RAGConfig.ENABLE_RAG_HYBRID_SEARCH && rerankingModel !== "") {
+ 				await rerankingModelUpdateHandler();
+ 			}
+ 		}
+@@ -194,7 +193,7 @@
+ 		const embeddingConfig = await getEmbeddingConfig(localStorage.token);
+ 
+ 		if (embeddingConfig) {
+-			embeddingEngine = embeddingConfig.embedding_engine;
++			embeddingEngine = 'openai';
+ 			embeddingModel = embeddingConfig.embedding_model;
+ 			embeddingBatchSize = embeddingConfig.embedding_batch_size ?? 1;
+ 
+@@ -206,19 +205,11 @@
+ 		}
+ 	};
+ 
+-	const setRerankingConfig = async () => {
+-		const rerankingConfig = await getRerankingConfig(localStorage.token);
+-
+-		if (rerankingConfig) {
+-			rerankingModel = rerankingConfig.reranking_model;
+-		}
+-	};
+-
+ 	onMount(async () => {
+ 		await setEmbeddingConfig();
+-		await setRerankingConfig();
+ 
+ 		RAGConfig = await getRAGConfig(localStorage.token);
++		console.log('RAGConfig', RAGConfig);
+ 	});
+ </script>
+ 
+@@ -278,76 +269,6 @@
+ 
+ 					<hr class=" border-gray-100 dark:border-gray-850 my-2" />
+ 
+-					<div class="mb-2.5 flex flex-col w-full justify-between">
+-						<div class="flex w-full justify-between">
+-							<div class="self-center text-xs font-medium">
+-								{$i18n.t('Content Extraction Engine')}
+-							</div>
+-							<div class="">
+-								<select
+-									class="dark:bg-gray-900 w-fit pr-8 rounded-sm px-2 text-xs bg-transparent outline-hidden text-right"
+-									bind:value={RAGConfig.CONTENT_EXTRACTION_ENGINE}
+-								>
+-									<option value="">{$i18n.t('Default')}</option>
+-									<option value="tika">{$i18n.t('Tika')}</option>
+-									<option value="docling">{$i18n.t('Docling')}</option>
+-									<option value="document_intelligence">{$i18n.t('Document Intelligence')}</option>
+-									<option value="mistral_ocr">{$i18n.t('Mistral OCR')}</option>
+-								</select>
+-							</div>
+-						</div>
+-
+-						{#if RAGConfig.CONTENT_EXTRACTION_ENGINE === ''}
+-							<div class="flex w-full mt-1">
+-								<div class="flex-1 flex justify-between">
+-									<div class=" self-center text-xs font-medium">
+-										{$i18n.t('PDF Extract Images (OCR)')}
+-									</div>
+-									<div class="flex items-center relative">
+-										<Switch bind:state={RAGConfig.PDF_EXTRACT_IMAGES} />
+-									</div>
+-								</div>
+-							</div>
+-						{:else if RAGConfig.CONTENT_EXTRACTION_ENGINE === 'tika'}
+-							<div class="flex w-full mt-1">
+-								<div class="flex-1 mr-2">
+-									<input
+-										class="flex-1 w-full rounded-lg text-sm bg-transparent outline-hidden"
+-										placeholder={$i18n.t('Enter Tika Server URL')}
+-										bind:value={RAGConfig.TIKA_SERVER_URL}
+-									/>
+-								</div>
+-							</div>
+-						{:else if RAGConfig.CONTENT_EXTRACTION_ENGINE === 'docling'}
+-							<div class="flex w-full mt-1">
+-								<input
+-									class="flex-1 w-full rounded-lg text-sm bg-transparent outline-hidden"
+-									placeholder={$i18n.t('Enter Docling Server URL')}
+-									bind:value={RAGConfig.DOCLING_SERVER_URL}
+-								/>
+-							</div>
+-						{:else if RAGConfig.CONTENT_EXTRACTION_ENGINE === 'document_intelligence'}
+-							<div class="my-0.5 flex gap-2 pr-2">
+-								<input
+-									class="flex-1 w-full rounded-lg text-sm bg-transparent outline-hidden"
+-									placeholder={$i18n.t('Enter Document Intelligence Endpoint')}
+-									bind:value={RAGConfig.DOCUMENT_INTELLIGENCE_ENDPOINT}
+-								/>
+-								<SensitiveInput
+-									placeholder={$i18n.t('Enter Document Intelligence Key')}
+-									bind:value={RAGConfig.DOCUMENT_INTELLIGENCE_KEY}
+-								/>
+-							</div>
+-						{:else if RAGConfig.CONTENT_EXTRACTION_ENGINE === 'mistral_ocr'}
+-							<div class="my-0.5 flex gap-2 pr-2">
+-								<SensitiveInput
+-									placeholder={$i18n.t('Enter Mistral API Key')}
+-									bind:value={RAGConfig.MISTRAL_OCR_API_KEY}
+-								/>
+-							</div>
+-						{/if}
+-					</div>
+-
+ 					<div class="  mb-2.5 flex w-full justify-between">
+ 						<div class=" self-center text-xs font-medium">
+ 							<Tooltip content={$i18n.t('Full Context Mode')} placement="top-start">
+@@ -372,15 +293,14 @@
+ 					{#if !RAGConfig.BYPASS_EMBEDDING_AND_RETRIEVAL}
+ 						<div class="  mb-2.5 flex w-full justify-between">
+ 							<div class=" self-center text-xs font-medium">{$i18n.t('Text Splitter')}</div>
+-							<div class="flex items-center relative">
++							<!-- <div class="flex items-center relative">
+ 								<select
+ 									class="dark:bg-gray-900 w-fit pr-8 rounded-sm px-2 text-xs bg-transparent outline-hidden text-right"
+ 									bind:value={RAGConfig.TEXT_SPLITTER}
+ 								>
+ 									<option value="">{$i18n.t('Default')} ({$i18n.t('Character')})</option>
+-									<option value="token">{$i18n.t('Token')} ({$i18n.t('Tiktoken')})</option>
+ 								</select>
+-							</div>
++							</div> -->
+ 						</div>
+ 
+ 						<div class="  mb-2.5 flex w-full justify-between">
+@@ -434,24 +354,9 @@
+ 									{$i18n.t('Embedding Model Engine')}
+ 								</div>
+ 								<div class="flex items-center relative">
+-									<select
+-										class="dark:bg-gray-900 w-fit pr-8 rounded-sm px-2 p-1 text-xs bg-transparent outline-hidden text-right"
+-										bind:value={embeddingEngine}
+-										placeholder="Select an embedding model engine"
+-										on:change={(e) => {
+-											if (e.target.value === 'ollama') {
+-												embeddingModel = '';
+-											} else if (e.target.value === 'openai') {
+-												embeddingModel = 'text-embedding-3-small';
+-											} else if (e.target.value === '') {
+-												embeddingModel = 'sentence-transformers/all-MiniLM-L6-v2';
+-											}
+-										}}
++									<span class="flex-1 w-full rounded-lg text-xs bg-transparent outline-hidden"
++										>{$i18n.t('OpenAI')}</span
+ 									>
+-										<option value="">{$i18n.t('Default (SentenceTransformers)')}</option>
+-										<option value="ollama">{$i18n.t('Ollama')}</option>
+-										<option value="openai">{$i18n.t('OpenAI')}</option>
+-									</select>
+ 								</div>
+ 							</div>
+ 
+@@ -633,6 +538,36 @@
+ 							</div>
+ 
+ 							{#if RAGConfig.ENABLE_RAG_HYBRID_SEARCH === true}
++								<div class="  mb-2.5 flex flex-col w-full justify-between">
++									<div class="flex w-full justify-between">
++										<div class=" self-center text-xs font-medium">
++											{$i18n.t('Reranking Engine')}
++										</div>
++										<div class="flex items-center relative">
++											<span class="flex-1 w-full rounded-lg text-xs bg-transparent outline-hidden"
++												>{$i18n.t('External')}</span
++											>
++										</div>
++									</div>
++
++									{#if RAGConfig.RAG_RERANKING_ENGINE === 'external'}
++										<div class="my-0.5 flex gap-2 pr-2">
++											<input
++												class="flex-1 w-full text-sm bg-transparent outline-hidden"
++												placeholder={$i18n.t('API Base URL')}
++												bind:value={RAGConfig.RAG_EXTERNAL_RERANKER_URL}
++												required
++											/>
++
++											<SensitiveInput
++												placeholder={$i18n.t('API Key')}
++												bind:value={RAGConfig.RAG_EXTERNAL_RERANKER_API_KEY}
++												required={false}
++											/>
++										</div>
++									{/if}
++								</div>
++
+ 								<div class="  mb-2.5 flex flex-col w-full">
+ 									<div class=" mb-1 text-xs font-medium">{$i18n.t('Reranking Model')}</div>
+ 
+@@ -640,66 +575,13 @@
+ 										<div class="flex w-full">
+ 											<div class="flex-1 mr-2">
+ 												<input
+-													class="flex-1 w-full rounded-lg text-sm bg-transparent outline-hidden"
++													class="flex-1 w-full text-sm bg-transparent outline-hidden"
+ 													placeholder={$i18n.t('Set reranking model (e.g. {{model}})', {
+ 														model: 'BAAI/bge-reranker-v2-m3'
+ 													})}
+-													bind:value={rerankingModel}
++													bind:value={RAGConfig.RAG_RERANKING_MODEL}
+ 												/>
+ 											</div>
+-											<button
+-												class="px-2.5 bg-transparent text-gray-800 dark:bg-transparent dark:text-gray-100 rounded-lg transition"
+-												on:click={() => {
+-													rerankingModelUpdateHandler();
+-												}}
+-												disabled={updateRerankingModelLoading}
+-											>
+-												{#if updateRerankingModelLoading}
+-													<div class="self-center">
+-														<svg
+-															class=" w-4 h-4"
+-															viewBox="0 0 24 24"
+-															fill="currentColor"
+-															xmlns="http://www.w3.org/2000/svg"
+-														>
+-															<style>
+-																.spinner_ajPY {
+-																	transform-origin: center;
+-																	animation: spinner_AtaB 0.75s infinite linear;
+-																}
+-
+-																@keyframes spinner_AtaB {
+-																	100% {
+-																		transform: rotate(360deg);
+-																	}
+-																}
+-															</style>
+-															<path
+-																d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,19a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z"
+-																opacity=".25"
+-															/>
+-															<path
+-																d="M10.14,1.16a11,11,0,0,0-9,8.92A1.59,1.59,0,0,0,2.46,12,1.52,1.52,0,0,0,4.11,10.7a8,8,0,0,1,6.66-6.61A1.42,1.42,0,0,0,12,2.69h0A1.57,1.57,0,0,0,10.14,1.16Z"
+-																class="spinner_ajPY"
+-															/>
+-														</svg>
+-													</div>
+-												{:else}
+-													<svg
+-														xmlns="http://www.w3.org/2000/svg"
+-														viewBox="0 0 16 16"
+-														fill="currentColor"
+-														class="w-4 h-4"
+-													>
+-														<path
+-															d="M8.75 2.75a.75.75 0 0 0-1.5 0v5.69L5.03 6.22a.75.75 0 0 0-1.06 1.06l3.5 3.5a.75.75 0 0 0 1.06 0l3.5-3.5a.75.75 0 0 0-1.06-1.06L8.75 8.44V2.75Z"
+-														/>
+-														<path
+-															d="M3.5 9.75a.75.75 0 0 0-1.5 0v1.5A2.75 2.75 0 0 0 4.75 14h6.5A2.75 2.75 0 0 0 14 11.25v-1.5a.75.75 0 0 0-1.5 0v1.5c0 .69-.56 1.25-1.25 1.25h-6.5c-.69 0-1.25-.56-1.25-1.25v-1.5Z"
+-														/>
+-													</svg>
+-												{/if}
+-											</button>
+ 										</div>
+ 									</div>
+ 								</div>
+@@ -763,6 +645,23 @@
+ 									</div>
+ 								</div>
+ 							{/if}
++							{#if RAGConfig.ENABLE_RAG_HYBRID_SEARCH === true}
++								<div class="mb-2.5 flex w-full justify-between">
++									<div class="self-center text-xs font-medium">{$i18n.t('BM25 Weight')}</div>
++									<div class="flex items-center relative">
++										<input
++											class="flex-1 w-full text-sm bg-transparent outline-hidden"
++											type="number"
++											step="0.01"
++											placeholder={$i18n.t('Enter BM25 Weight')}
++											bind:value={RAGConfig.BM25_WEIGHT}
++											autocomplete="off"
++											min="0.0"
++											max="1.0"
++										/>
++									</div>
++								</div>
++							{/if}
+ 						{/if}
+ 
+ 						<div class="  mb-2.5 flex flex-col w-full justify-between">
+@@ -835,7 +734,7 @@
+ 					</div>
+ 				</div>
+ 
+-				<div class="mb-3">
++				<!-- <div class="mb-3">
+ 					<div class=" mb-2.5 text-base font-medium">{$i18n.t('Integration')}</div>
+ 
+ 					<hr class=" border-gray-100 dark:border-gray-850 my-2" />
+@@ -853,7 +752,7 @@
+ 							<Switch bind:state={RAGConfig.ENABLE_ONEDRIVE_INTEGRATION} />
+ 						</div>
+ 					</div>
+-				</div>
++				</div> -->
+ 
+ 				<div class="mb-3">
+ 					<div class=" mb-2.5 text-base font-medium">{$i18n.t('Danger Zone')}</div>
+diff --git a/src/lib/components/admin/Settings/General.svelte b/src/lib/components/admin/Settings/General.svelte
+index 5c50bf311..6094c63ff 100644
+--- a/src/lib/components/admin/Settings/General.svelte
++++ b/src/lib/components/admin/Settings/General.svelte
+@@ -120,8 +120,8 @@
+ 				<div class="mb-3.5">
+ 					<div class=" mb-2.5 text-base font-medium">{$i18n.t('General')}</div>
+ 
+-					<hr class=" border-gray-100 dark:border-gray-850 my-2" />
+-
++					<!-- <hr class=" border-gray-100 dark:border-gray-850 my-2" /> -->
++<!-- 
+ 					<div class="mb-2.5">
+ 						<div class=" mb-1 text-xs font-medium flex space-x-2 items-center">
+ 							<div>
+@@ -262,13 +262,8 @@
+ 								{/if}
+ 							</div>
+ 
+-							<!-- <button
+-								class="flex-shrink-0 text-xs px-3 py-1.5 bg-gray-50 hover:bg-gray-100 dark:bg-gray-850 dark:hover:bg-gray-800 transition rounded-lg font-medium"
+-							>
+-								{$i18n.t('Activate')}
+-							</button> -->
+ 						</div>
+-					</div>
++					</div> -->
+ 				</div>
+ 
+ 				<div class="mb-3">
+@@ -346,7 +341,7 @@
+ 							</div>
+ 						{/if}
+ 					{/if}
+-
++<!-- 
+ 					<div class=" mb-2.5 w-full justify-between">
+ 						<div class="flex w-full justify-between">
+ 							<div class=" self-center text-xs font-medium">{$i18n.t('JWT Expiration')}</div>
+@@ -367,9 +362,9 @@
+ 								>{$i18n.t("'s', 'm', 'h', 'd', 'w' or '-1' for no expiration.")}</span
+ 							>
+ 						</div>
+-					</div>
++					</div> -->
+ 
+-					<div class=" space-y-3">
++					<!-- <div class=" space-y-3">
+ 						<div class="mt-2 space-y-2 pr-1.5">
+ 							<div class="flex justify-between items-center text-sm">
+ 								<div class="  font-medium">{$i18n.t('LDAP')}</div>
+@@ -579,10 +574,10 @@
+ 								</div>
+ 							{/if}
+ 						</div>
+-					</div>
++					</div> -->
+ 				</div>
+ 
+-				<div class="mb-3">
++				<!-- <div class="mb-3">
+ 					<div class=" mb-2.5 text-base font-medium">{$i18n.t('Features')}</div>
+ 
+ 					<hr class=" border-gray-100 dark:border-gray-850 my-2" />
+@@ -652,7 +647,7 @@
+ 							/>
+ 						</div>
+ 					</div>
+-				</div>
++				</div> -->
+ 			</div>
+ 		{/if}
+ 	</div>
+diff --git a/src/lib/components/admin/Settings/Interface.svelte b/src/lib/components/admin/Settings/Interface.svelte
+index adb4fbdf9..bafee4687 100644
+--- a/src/lib/components/admin/Settings/Interface.svelte
++++ b/src/lib/components/admin/Settings/Interface.svelte
+@@ -69,7 +69,7 @@
+ 		}}
+ 	>
+ 		<div class="  overflow-y-scroll scrollbar-hidden h-full pr-1.5">
+-			<div class="mb-3.5">
++			<!-- <div class="mb-3.5">
+ 				<div class=" mb-2.5 text-base font-medium">{$i18n.t('Tasks')}</div>
+ 
+ 				<hr class=" border-gray-100 dark:border-gray-850 my-2" />
+@@ -276,7 +276,7 @@
+ 						/>
+ 					</Tooltip>
+ 				</div>
+-			</div>
++			</div> -->
+ 
+ 			<div class="mb-3.5">
+ 				<div class=" mb-2.5 text-base font-medium">{$i18n.t('UI')}</div>
+diff --git a/src/lib/components/admin/Settings/ProjectInfo.svelte b/src/lib/components/admin/Settings/ProjectInfo.svelte
+new file mode 100644
+index 000000000..4e93088e7
+--- /dev/null
++++ b/src/lib/components/admin/Settings/ProjectInfo.svelte
+@@ -0,0 +1,245 @@
++<script lang="ts">
++	import { toast } from 'svelte-sonner';
++	import { user, config, WEBUI_NAME, PROJECT_IMG } from '$lib/stores';
++	import {
++		updateUserProfile,
++		getSessionUser,
++		getAdminConfig,
++		updateAdminConfig
++	} from '$lib/apis/auths';
++
++	import { generateInitialsImage, canvasPixelTest } from '$lib/utils';
++	import { createEventDispatcher, onMount, getContext } from 'svelte';
++	import { getBackendConfig } from '$lib/apis';
++
++	const i18n = getContext('i18n');
++	const dispatch = createEventDispatcher();
++
++	let profileImageUrl =  $PROJECT_IMG;
++	let name = $WEBUI_NAME;
++	let adminConfig = {};
++
++	let profileImageInputElement: HTMLInputElement;
++
++	const submitHandler = async () => {
++		if (name !== $user?.name) {
++			if (profileImageUrl === generateInitialsImage($user?.name) || profileImageUrl === '') {
++				profileImageUrl = generateInitialsImage(name);
++			}
++		}
++
++		const updatedUser = await updateUserProfile(localStorage.token, name, profileImageUrl).catch(
++			(error) => {
++				toast.error(`${error}`);
++			}
++		);
++
++		if (updatedUser) {
++			// Get Session User Info
++			const sessionUser = await getSessionUser(localStorage.token).catch((error) => {
++				toast.error(`${error}`);
++				return null;
++			});
++
++			await user.set(sessionUser);
++			return true;
++		}
++		return false;
++	};
++
++	onMount(async () => {
++		await Promise.all([
++			(async () => {
++				adminConfig = await getAdminConfig(localStorage.token);
++				console.log('adminConfig', adminConfig);
++			})()
++		]);
++	});
++
++	const updateInterfaceHandler = async () => {
++		// update adminConfig
++		// 修改里面的adminConfig
++		adminConfig.PROJECT_NAME = name;
++		adminConfig.PROJECT_IMG_URL = profileImageUrl;
++
++		const res = await updateAdminConfig(localStorage.token, adminConfig);
++		console.log('admin update res', res);
++
++		WEBUI_NAME.set(name);
++		PROJECT_IMG.set(profileImageUrl);
++
++		// update config --name + imgURL
++		const backendConfig = await getBackendConfig();
++		console.log('backendConfig', backendConfig);
++		
++
++	};
++</script>
++
++<form
++	class="flex flex-col h-full justify-between space-y-3 text-sm"
++	on:submit|preventDefault={() => {
++		updateInterfaceHandler();
++		dispatch('save');
++	}}
++>
++	<div class="flex flex-col h-full justify-between text-sm">
++		<div class=" space-y-3 overflow-y-scroll max-h-[28rem] lg:max-h-full">
++			<input
++				id="profile-image-input"
++				bind:this={profileImageInputElement}
++				type="file"
++				hidden
++				accept="image/*"
++				on:change={(e) => {
++					const files = profileImageInputElement.files ?? [];
++					let reader = new FileReader();
++					reader.onload = (event) => {
++						let originalImageUrl = `${event.target.result}`;
++
++						const img = new Image();
++						img.src = originalImageUrl;
++
++						img.onload = function () {
++							const canvas = document.createElement('canvas');
++							const ctx = canvas.getContext('2d');
++
++							// Calculate the aspect ratio of the image
++							const aspectRatio = img.width / img.height;
++
++							// Calculate the new width and height to fit within 250x250
++							let newWidth, newHeight;
++							if (aspectRatio > 1) {
++								newWidth = 250 * aspectRatio;
++								newHeight = 250;
++							} else {
++								newWidth = 250;
++								newHeight = 250 / aspectRatio;
++							}
++
++							// Set the canvas size
++							canvas.width = 250;
++							canvas.height = 250;
++
++							// Calculate the position to center the image
++							const offsetX = (250 - newWidth) / 2;
++							const offsetY = (250 - newHeight) / 2;
++
++							// Draw the image on the canvas
++							ctx.drawImage(img, offsetX, offsetY, newWidth, newHeight);
++
++							// Get the base64 representation of the compressed image
++							const compressedSrc = canvas.toDataURL('image/jpeg');
++
++							// Display the compressed image
++							profileImageUrl = compressedSrc;
++
++							profileImageInputElement.files = null;
++						};
++					};
++
++					if (
++						files.length > 0 &&
++						['image/gif', 'image/webp', 'image/jpeg', 'image/png'].includes(files[0]['type'])
++					) {
++						reader.readAsDataURL(files[0]);
++					}
++				}}
++			/>
++
++			<div class="space-y-1">
++				<div class="flex space-x-5">
++					<div class="flex flex-col">
++						<div class="self-center mt-2">
++							<button
++								class="relative rounded-full dark:bg-gray-700"
++								type="button"
++								on:click={() => {
++									profileImageInputElement.click();
++								}}
++							>
++								<img
++									src={profileImageUrl !== '' ? profileImageUrl : generateInitialsImage(name)}
++									alt="profile"
++									class=" rounded-full size-16 object-cover"
++								/>
++
++								<div
++									class="absolute flex justify-center rounded-full bottom-0 left-0 right-0 top-0 h-full w-full overflow-hidden bg-gray-700 bg-fixed opacity-0 transition duration-300 ease-in-out hover:opacity-50"
++								>
++									<div class="my-auto text-gray-100">
++										<svg
++											xmlns="http://www.w3.org/2000/svg"
++											viewBox="0 0 20 20"
++											fill="currentColor"
++											class="w-5 h-5"
++										>
++											<path
++												d="m2.695 14.762-1.262 3.155a.5.5 0 0 0 .65.65l3.155-1.262a4 4 0 0 0 1.343-.886L17.5 5.501a2.121 2.121 0 0 0-3-3L3.58 13.419a4 4 0 0 0-.885 1.343Z"
++											/>
++										</svg>
++									</div>
++								</div>
++							</button>
++						</div>
++					</div>
++
++					<div class="flex-1 flex flex-col self-center gap-0.5">
++						<div class=" mb-0.5 text-sm font-medium">{$i18n.t('Project Image')}</div>
++
++						<div>
++							<button
++								class=" text-xs text-center text-gray-800 dark:text-gray-400 rounded-full px-4 py-0.5 bg-gray-100 dark:bg-gray-850"
++								on:click={async () => {
++									if (canvasPixelTest()) {
++										profileImageUrl = generateInitialsImage(name);
++									} else {
++										toast.info(
++											$i18n.t(
++												'Fingerprint spoofing detected: Unable to use initials as avatar. Defaulting to default profile image.'
++											),
++											{
++												duration: 1000 * 10
++											}
++										);
++									}
++								}}>{$i18n.t('Use Initials')}</button
++							>
++
++							<button
++								class=" text-xs text-center text-gray-800 dark:text-gray-400 rounded-lg px-2 py-1"
++								on:click={async () => {
++									profileImageUrl = '/user.png';
++								}}>{$i18n.t('Remove')}</button
++							>
++						</div>
++					</div>
++				</div>
++
++				<div class="pt-0.5">
++					<div class="flex flex-col w-full">
++						<div class=" mb-1 text-sm font-semibold">{$i18n.t('Project Name')}</div>
++
++						<div class="flex-1">
++							<input
++								class="border-b border-gray-400 w-full py-2 text-sm dark:text-gray-300 dark:bg-gray-850 outline-hidden"
++								type="text"
++								bind:value={name}
++								required
++								placeholder={$i18n.t('Enter your name')}
++							/>
++						</div>
++					</div>
++				</div>
++			</div>
++		</div>
++
++		<div class="flex justify-end pt-3 text-sm font-medium">
++			<button
++				class="px-3.5 py-1.5 text-sm font-medium bg-black hover:bg-gray-900 text-white dark:bg-white dark:text-black dark:hover:bg-gray-100 transition rounded-full"
++			>
++				{$i18n.t('Save')}
++			</button>
++		</div>
++	</div>
++</form>
+diff --git a/src/lib/components/channel/MessageInput.svelte b/src/lib/components/channel/MessageInput.svelte
+index 9f495a8de..dcd3187e2 100644
+--- a/src/lib/components/channel/MessageInput.svelte
++++ b/src/lib/components/channel/MessageInput.svelte
+@@ -518,7 +518,7 @@
+ 							</div>
+ 
+ 							<div class="self-end flex space-x-1 mr-1">
+-								{#if content === ''}
++								<!-- {#if content === ''}
+ 									<Tooltip content={$i18n.t('Record voice')}>
+ 										<button
+ 											id="voice-input-button"
+@@ -562,7 +562,7 @@
+ 											</svg>
+ 										</button>
+ 									</Tooltip>
+-								{/if}
++								{/if} -->
+ 
+ 								<div class=" flex items-center">
+ 									<div class=" flex items-center">
+diff --git a/src/lib/components/chat/ChatPlaceholder.svelte b/src/lib/components/chat/ChatPlaceholder.svelte
+index c2a44ee9c..ee526f6ca 100644
+--- a/src/lib/components/chat/ChatPlaceholder.svelte
++++ b/src/lib/components/chat/ChatPlaceholder.svelte
+@@ -2,7 +2,7 @@
+ 	import { WEBUI_BASE_URL } from '$lib/constants';
+ 	import { marked } from 'marked';
+ 
+-	import { config, user, models as _models, temporaryChatEnabled } from '$lib/stores';
++	import { config, user, models as _models, temporaryChatEnabled, PROJECT_IMG } from '$lib/stores';
+ 	import { onMount, getContext } from 'svelte';
+ 
+ 	import { blur, fade } from 'svelte/transition';
+@@ -55,7 +55,7 @@
+ 								src={model?.info?.meta?.profile_image_url ??
+ 									($i18n.language === 'dg-DG'
+ 										? `/doge.png`
+-										: `${WEBUI_BASE_URL}/static/favicon.png`)}
++										: $PROJECT_IMG)}
+ 								class=" size-[2.7rem] rounded-full border-[1px] border-gray-100 dark:border-none"
+ 								alt="logo"
+ 								draggable="false"
+diff --git a/src/lib/components/chat/MessageInput.svelte b/src/lib/components/chat/MessageInput.svelte
+index ca6487cf5..6b1c196f8 100644
+--- a/src/lib/components/chat/MessageInput.svelte
++++ b/src/lib/components/chat/MessageInput.svelte
+@@ -1264,7 +1264,7 @@
+ 											</div>
+ 										{:else if prompt === '' && files.length === 0 && ($_user?.role === 'admin' || ($_user?.permissions?.chat?.call ?? true))}
+ 											<div class=" flex items-center">
+-												<Tooltip content={$i18n.t('Call')}>
++												<!-- <Tooltip content={$i18n.t('Call')}>
+ 													<button
+ 														class=" bg-black text-white hover:bg-gray-900 dark:bg-white dark:text-black dark:hover:bg-gray-100 transition rounded-full p-1.5 self-center"
+ 														type="button"
+@@ -1322,7 +1322,7 @@
+ 													>
+ 														<Headphone className="size-5" />
+ 													</button>
+-												</Tooltip>
++												</Tooltip> -->
+ 											</div>
+ 										{:else}
+ 											<div class=" flex items-center">
+diff --git a/src/lib/components/chat/Placeholder.svelte b/src/lib/components/chat/Placeholder.svelte
+index 545d43c44..f7e5d72a7 100644
+--- a/src/lib/components/chat/Placeholder.svelte
++++ b/src/lib/components/chat/Placeholder.svelte
+@@ -7,7 +7,7 @@
+ 
+ 	const dispatch = createEventDispatcher();
+ 
+-	import { config, user, models as _models, temporaryChatEnabled } from '$lib/stores';
++	import { config, user, models as _models, temporaryChatEnabled, PROJECT_IMG } from '$lib/stores';
+ 	import { sanitizeResponseContent, extractCurlyBraceWords } from '$lib/utils';
+ 	import { WEBUI_BASE_URL } from '$lib/constants';
+ 
+@@ -125,7 +125,7 @@
+ 										src={model?.info?.meta?.profile_image_url ??
+ 											($i18n.language === 'dg-DG'
+ 												? `/doge.png`
+-												: `${WEBUI_BASE_URL}/static/favicon.png`)}
++												:  $PROJECT_IMG)}
+ 										class=" size-9 @sm:size-10 rounded-full border-[1px] border-gray-100 dark:border-none"
+ 										alt="logo"
+ 										draggable="false"
+diff --git a/src/lib/components/chat/Settings/Account.svelte b/src/lib/components/chat/Settings/Account.svelte
+index db403252f..a273e71a9 100644
+--- a/src/lib/components/chat/Settings/Account.svelte
++++ b/src/lib/components/chat/Settings/Account.svelte
+@@ -246,7 +246,7 @@
+ 				</div>
+ 			</div>
+ 
+-			{#if $config?.features?.enable_user_webhooks}
++			<!-- {#if $config?.features?.enable_user_webhooks}
+ 				<div class="pt-2">
+ 					<div class="flex flex-col w-full">
+ 						<div class=" mb-1 text-xs font-medium">{$i18n.t('Notification Webhook')}</div>
+@@ -262,7 +262,7 @@
+ 						</div>
+ 					</div>
+ 				</div>
+-			{/if}
++			{/if} -->
+ 		</div>
+ 
+ 		<div class="py-0.5">
+diff --git a/src/lib/components/chat/Settings/General.svelte b/src/lib/components/chat/Settings/General.svelte
+index 928a469d5..42aac0b0d 100644
+--- a/src/lib/components/chat/Settings/General.svelte
++++ b/src/lib/components/chat/Settings/General.svelte
+@@ -93,6 +93,8 @@
+ 	};
+ 
+ 	const saveHandler = async () => {
++		console.log('requestFormat', requestFormat);
++		
+ 		if (requestFormat !== null && requestFormat !== 'json') {
+ 			if (validateJSON(requestFormat) === false) {
+ 				toast.error($i18n.t('Invalid JSON schema'));
+@@ -287,7 +289,7 @@
+ 				</div>
+ 			{/if}
+ 
+-			<div>
++			<!-- <div>
+ 				<div class=" py-0.5 flex w-full justify-between">
+ 					<div class=" self-center text-xs font-medium">{$i18n.t('Notifications')}</div>
+ 
+@@ -305,7 +307,7 @@
+ 						{/if}
+ 					</button>
+ 				</div>
+-			</div>
++			</div> -->
+ 		</div>
+ 
+ 		{#if $user?.role === 'admin' || $user?.permissions.chat?.controls}
+@@ -321,7 +323,7 @@
+ 				/>
+ 			</div>
+ 
+-			<div class="mt-2 space-y-3 pr-1.5">
++			<!-- <div class="mt-2 space-y-3 pr-1.5">
+ 				<div class="flex justify-between items-center text-sm">
+ 					<div class="  font-medium">{$i18n.t('Advanced Parameters')}</div>
+ 					<button
+@@ -381,16 +383,6 @@
+ 								{#if requestFormat === null}
+ 									<span class="ml-2 self-center"> {$i18n.t('Default')} </span>
+ 								{:else}
+-									<!-- <svg
+-                            xmlns="http://www.w3.org/2000/svg"
+-                            viewBox="0 0 20 20"
+-                            fill="currentColor"
+-                            class="w-4 h-4 self-center"
+-                        >
+-                            <path
+-                                d="M10 2a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0110 2zM10 15a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0110 15zM10 7a3 3 0 100 6 3 3 0 000-6zM15.657 5.404a.75.75 0 10-1.06-1.06l-1.061 1.06a.75.75 0 001.06 1.06l1.06-1.06zM6.464 14.596a.75.75 0 10-1.06-1.06l-1.06 1.06a.75.75 0 001.06 1.06l1.06-1.06zM18 10a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5A.75.75 0 0118 10zM5 10a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5A.75.75 0 015 10zM14.596 15.657a.75.75 0 001.06-1.06l-1.06-1.061a.75.75 0 10-1.06 1.06l1.06 1.06zM5.404 6.464a.75.75 0 001.06-1.06l-1.06-1.06a.75.75 0 10-1.061 1.06l1.06 1.06z"
+-                            />
+-                        </svg> -->
+ 									<span class="ml-2 self-center"> {$i18n.t('JSON')} </span>
+ 								{/if}
+ 							</button>
+@@ -407,7 +399,7 @@
+ 						{/if}
+ 					</div>
+ 				{/if}
+-			</div>
++			</div> -->
+ 		{/if}
+ 	</div>
+ 
+diff --git a/src/lib/components/chat/SettingsModal.svelte b/src/lib/components/chat/SettingsModal.svelte
+index ed2e9eb7a..2a547a404 100644
+--- a/src/lib/components/chat/SettingsModal.svelte
++++ b/src/lib/components/chat/SettingsModal.svelte
+@@ -123,95 +123,95 @@
+ 				'alwaysonwebsearch'
+ 			]
+ 		},
+-		{
+-			id: 'connections',
+-			title: 'Connections',
+-			keywords: []
+-		},
+-		{
+-			id: 'tools',
+-			title: 'Tools',
+-			keywords: []
+-		},
+-		{
+-			id: 'personalization',
+-			title: 'Personalization',
+-			keywords: [
+-				'personalization',
+-				'memory',
+-				'personalize',
+-				'preferences',
+-				'profile',
+-				'personalsettings',
+-				'customsettings',
+-				'userpreferences',
+-				'accountpreferences'
+-			]
+-		},
+-		{
+-			id: 'audio',
+-			title: 'Audio',
+-			keywords: [
+-				'audio',
+-				'sound',
+-				'soundsettings',
+-				'audiocontrol',
+-				'volume',
+-				'speech',
+-				'speechrecognition',
+-				'stt',
+-				'speechtotext',
+-				'tts',
+-				'texttospeech',
+-				'playback',
+-				'playbackspeed',
+-				'voiceplayback',
+-				'speechplayback',
+-				'audiooutput',
+-				'speechengine',
+-				'voicecontrol',
+-				'audioplayback',
+-				'transcription',
+-				'autotranscribe',
+-				'autosend',
+-				'speechsettings',
+-				'audiovoice',
+-				'voiceoptions',
+-				'setvoice',
+-				'nonlocalvoices',
+-				'savesettings',
+-				'audioconfig',
+-				'speechconfig',
+-				'voicerecognition',
+-				'speechsynthesis',
+-				'speechmode',
+-				'voicespeed',
+-				'speechrate',
+-				'speechspeed',
+-				'audioinput',
+-				'audiofeatures',
+-				'voicemodes'
+-			]
+-		},
+-		{
+-			id: 'chats',
+-			title: 'Chats',
+-			keywords: [
+-				'chat',
+-				'messages',
+-				'conversations',
+-				'chatsettings',
+-				'history',
+-				'chathistory',
+-				'messagehistory',
+-				'messagearchive',
+-				'convo',
+-				'chats',
+-				'conversationhistory',
+-				'exportmessages',
+-				'chatactivity'
+-			]
+-		},
++		// {
++		// 	id: 'connections',
++		// 	title: 'Connections',
++		// 	keywords: []
++		// },
++		// {
++		// 	id: 'tools',
++		// 	title: 'Tools',
++		// 	keywords: []
++		// },
++		// {
++		// 	id: 'personalization',
++		// 	title: 'Personalization',
++		// 	keywords: [
++		// 		'personalization',
++		// 		'memory',
++		// 		'personalize',
++		// 		'preferences',
++		// 		'profile',
++		// 		'personalsettings',
++		// 		'customsettings',
++		// 		'userpreferences',
++		// 		'accountpreferences'
++		// 	]
++		// },
++		// {
++		// 	id: 'audio',
++		// 	title: 'Audio',
++		// 	keywords: [
++		// 		'audio',
++		// 		'sound',
++		// 		'soundsettings',
++		// 		'audiocontrol',
++		// 		'volume',
++		// 		'speech',
++		// 		'speechrecognition',
++		// 		'stt',
++		// 		'speechtotext',
++		// 		'tts',
++		// 		'texttospeech',
++		// 		'playback',
++		// 		'playbackspeed',
++		// 		'voiceplayback',
++		// 		'speechplayback',
++		// 		'audiooutput',
++		// 		'speechengine',
++		// 		'voicecontrol',
++		// 		'audioplayback',
++		// 		'transcription',
++		// 		'autotranscribe',
++		// 		'autosend',
++		// 		'speechsettings',
++		// 		'audiovoice',
++		// 		'voiceoptions',
++		// 		'setvoice',
++		// 		'nonlocalvoices',
++		// 		'savesettings',
++		// 		'audioconfig',
++		// 		'speechconfig',
++		// 		'voicerecognition',
++		// 		'speechsynthesis',
++		// 		'speechmode',
++		// 		'voicespeed',
++		// 		'speechrate',
++		// 		'speechspeed',
++		// 		'audioinput',
++		// 		'audiofeatures',
++		// 		'voicemodes'
++		// 	]
++		// },
++		// {
++		// 	id: 'chats',
++		// 	title: 'Chats',
++		// 	keywords: [
++		// 		'chat',
++		// 		'messages',
++		// 		'conversations',
++		// 		'chatsettings',
++		// 		'history',
++		// 		'chathistory',
++		// 		'messagehistory',
++		// 		'messagearchive',
++		// 		'convo',
++		// 		'chats',
++		// 		'conversationhistory',
++		// 		'exportmessages',
++		// 		'chatactivity'
++		// 	]
++		// },
+ 		{
+ 			id: 'account',
+ 			title: 'Account',
+@@ -265,33 +265,33 @@
+ 				'users'
+ 			]
+ 		},
+-		{
+-			id: 'about',
+-			title: 'About',
+-			keywords: [
+-				'about',
+-				'info',
+-				'information',
+-				'version',
+-				'documentation',
+-				'help',
+-				'support',
+-				'details',
+-				'aboutus',
+-				'softwareinfo',
+-				'timothyjaeryangbaek',
+-				'openwebui',
+-				'release',
+-				'updates',
+-				'updateinfo',
+-				'versioninfo',
+-				'aboutapp',
+-				'terms',
+-				'termsandconditions',
+-				'contact',
+-				'aboutpage'
+-			]
+-		}
++		// {
++		// 	id: 'about',
++		// 	title: 'About',
++		// 	keywords: [
++		// 		'about',
++		// 		'info',
++		// 		'information',
++		// 		'version',
++		// 		'documentation',
++		// 		'help',
++		// 		'support',
++		// 		'details',
++		// 		'aboutus',
++		// 		'softwareinfo',
++		// 		'timothyjaeryangbaek',
++		// 		'openwebui',
++		// 		'release',
++		// 		'updates',
++		// 		'updateinfo',
++		// 		'versioninfo',
++		// 		'aboutapp',
++		// 		'terms',
++		// 		'termsandconditions',
++		// 		'contact',
++		// 		'aboutpage'
++		// 	]
++		// }
+ 	];
+ 
+ 	let search = '';
+@@ -436,7 +436,7 @@
+ 								<div class=" self-center">{$i18n.t('General')}</div>
+ 							</button>
+ 						{:else if tabId === 'interface'}
+-							<button
++							<!-- <button
+ 								class="px-0.5 py-1 min-w-fit rounded-lg flex-1 md:flex-none flex text-left transition {selectedTab ===
+ 								'interface'
+ 									? ''
+@@ -460,7 +460,7 @@
+ 									</svg>
+ 								</div>
+ 								<div class=" self-center">{$i18n.t('Interface')}</div>
+-							</button>
++							</button> -->
+ 						{:else if tabId === 'connections'}
+ 							{#if $user?.role === 'admin' || ($user?.role === 'user' && $config?.features?.enable_direct_connections)}
+ 								<button
+@@ -695,7 +695,7 @@
+ 							toast.success($i18n.t('Settings saved successfully!'));
+ 						}}
+ 					/>
+-				{:else if selectedTab === 'tools'}
++				<!-- {:else if selectedTab === 'tools'}
+ 					<Tools
+ 						saveSettings={async (updated) => {
+ 							await saveSettings(updated);
+@@ -717,7 +717,7 @@
+ 						}}
+ 					/>
+ 				{:else if selectedTab === 'chats'}
+-					<Chats {saveSettings} />
++					<Chats {saveSettings} /> -->
+ 				{:else if selectedTab === 'account'}
+ 					<Account
+ 						{saveSettings}
+@@ -725,8 +725,8 @@
+ 							toast.success($i18n.t('Settings saved successfully!'));
+ 						}}
+ 					/>
+-				{:else if selectedTab === 'about'}
+-					<About />
++				<!-- {:else if selectedTab === 'about'}
++					<About /> -->
+ 				{/if}
+ 			</div>
+ 		</div>
+diff --git a/src/lib/components/layout/Sidebar.svelte b/src/lib/components/layout/Sidebar.svelte
+index 2de4c8e85..6e62c2b20 100644
+--- a/src/lib/components/layout/Sidebar.svelte
++++ b/src/lib/components/layout/Sidebar.svelte
+@@ -1,6 +1,7 @@
+ <script lang="ts">
+ 	import { toast } from 'svelte-sonner';
+ 	import { v4 as uuidv4 } from 'uuid';
++	import { PROJECT_IMG } from '$lib/stores';
+ 
+ 	import { goto } from '$app/navigation';
+ 	import {
+@@ -528,7 +529,7 @@
+ 					<div class="self-center mx-1.5">
+ 						<img
+ 							crossorigin="anonymous"
+-							src="{WEBUI_BASE_URL}/static/favicon.png"
++							src="{$PROJECT_IMG}"
+ 							class=" size-5 -translate-x-1.5 rounded-full"
+ 							alt="logo"
+ 						/>
+diff --git a/src/lib/components/layout/Sidebar/UserMenu.svelte b/src/lib/components/layout/Sidebar/UserMenu.svelte
+index 3680a4daa..68fe7e66e 100644
+--- a/src/lib/components/layout/Sidebar/UserMenu.svelte
++++ b/src/lib/components/layout/Sidebar/UserMenu.svelte
+@@ -72,7 +72,7 @@
+ 				<div class=" self-center truncate">{$i18n.t('Settings')}</div>
+ 			</button>
+ 
+-			<button
++			<!-- <button
+ 				class="flex rounded-md py-2 px-3 w-full hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+ 				on:click={() => {
+ 					dispatch('show', 'archived-chat');
+@@ -87,10 +87,10 @@
+ 					<ArchiveBox className="size-5" strokeWidth="1.5" />
+ 				</div>
+ 				<div class=" self-center truncate">{$i18n.t('Archived Chats')}</div>
+-			</button>
++			</button> -->
+ 
+ 			{#if role === 'admin'}
+-				<a
++				<!-- <a
+ 					class="flex rounded-md py-2 px-3 w-full hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+ 					href="/playground"
+ 					on:click={() => {
+@@ -118,7 +118,7 @@
+ 						</svg>
+ 					</div>
+ 					<div class=" self-center truncate">{$i18n.t('Playground')}</div>
+-				</a>
++				</a> -->
+ 
+ 				<a
+ 					class="flex rounded-md py-2 px-3 w-full hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+diff --git a/src/lib/components/workspace/Prompts.svelte b/src/lib/components/workspace/Prompts.svelte
+index 0c16b49a2..396498fdc 100644
+--- a/src/lib/components/workspace/Prompts.svelte
++++ b/src/lib/components/workspace/Prompts.svelte
+@@ -318,7 +318,7 @@
+ 			</div>
+ 		</div>
+ 	{/if}
+-
++<!-- 
+ 	{#if $config?.features.enable_community_sharing}
+ 		<div class=" my-16">
+ 			<div class=" text-xl font-medium mb-1 line-clamp-1">
+@@ -344,7 +344,7 @@
+ 				</div>
+ 			</a>
+ 		</div>
+-	{/if}
++	{/if} -->
+ {:else}
+ 	<div class="w-full h-full flex justify-center items-center">
+ 		<Spinner />
+diff --git a/src/lib/constants.ts b/src/lib/constants.ts
+index d92f33671..7d5b0332e 100644
+--- a/src/lib/constants.ts
++++ b/src/lib/constants.ts
+@@ -1,7 +1,6 @@
+ import { browser, dev } from '$app/environment';
+ // import { version } from '../../package.json';
+ 
+-export const APP_NAME = 'Open WebUI';
+ 
+ export const WEBUI_HOSTNAME = browser ? (dev ? `${location.hostname}:8080` : ``) : '';
+ export const WEBUI_BASE_URL = browser ? (dev ? `http://${WEBUI_HOSTNAME}` : ``) : ``;
+diff --git a/src/lib/i18n/index.ts b/src/lib/i18n/index.ts
+index a5a83d093..a285d5918 100644
+--- a/src/lib/i18n/index.ts
++++ b/src/lib/i18n/index.ts
+@@ -41,7 +41,7 @@ export const initI18n = (defaultLocale?: string | undefined) => {
+ 	let detectionOrder = defaultLocale
+ 		? ['querystring', 'localStorage']
+ 		: ['querystring', 'localStorage', 'navigator'];
+-	let fallbackDefaultLocale = defaultLocale ? [defaultLocale] : ['en-US'];
++	let fallbackDefaultLocale = defaultLocale ? [defaultLocale] : ['zh-CN'];
+ 
+ 	const loadResource = (language: string, namespace: string) =>
+ 		import(`./locales/${language}/${namespace}.json`);
+@@ -79,6 +79,8 @@ export const getLanguages = async () => {
+ 	return languages;
+ };
+ export const changeLanguage = (lang: string) => {
++	console.log('lang', lang);
++	
+ 	document.documentElement.setAttribute('lang', lang);
+ 	i18next.changeLanguage(lang);
+ };
+diff --git a/src/lib/i18n/locales/en-US/translation.json b/src/lib/i18n/locales/en-US/translation.json
+index ef83bdf42..fcafccf1d 100644
+--- a/src/lib/i18n/locales/en-US/translation.json
++++ b/src/lib/i18n/locales/en-US/translation.json
+@@ -401,6 +401,7 @@
+ 	"Enter Application DN Password": "",
+ 	"Enter Bing Search V7 Endpoint": "",
+ 	"Enter Bing Search V7 Subscription Key": "",
++	"Enter BM25 Weight": "",
+ 	"Enter Bocha Search API Key": "",
+ 	"Enter Brave Search API Key": "",
+ 	"Enter certificate path": "",
+diff --git a/src/lib/i18n/locales/zh-CN/translation.json b/src/lib/i18n/locales/zh-CN/translation.json
+index f775849a4..9b51d6591 100644
+--- a/src/lib/i18n/locales/zh-CN/translation.json
++++ b/src/lib/i18n/locales/zh-CN/translation.json
+@@ -636,6 +636,7 @@
+ 	"Instant Auto-Send After Voice Transcription": "语音转录文字后即时自动发送",
+ 	"Integration": "集成",
+ 	"Interface": "界面",
++	"Project Setting": "项目设置",
+ 	"Invalid file format.": "无效文件格式。",
+ 	"Invalid JSON schema": "无效的 JSON schema",
+ 	"Invalid Tag": "无效标签",
+@@ -871,6 +872,8 @@
+ 	"Previous 7 days": "过去 7 天",
+ 	"Private": "私有",
+ 	"Profile Image": "用户头像",
++	"Project Image": "项目LOGO",
++	"Project Name": "项目名称",
+ 	"Prompt": "提示词 (Prompt)",
+ 	"Prompt (e.g. Tell me a fun fact about the Roman Empire)": "提示词（例如：给我讲一个关于罗马帝国的趣事。）",
+ 	"Prompt Autocompletion": "提示词自动补全",
+diff --git a/src/lib/stores/index.ts b/src/lib/stores/index.ts
+index 87f48c72c..f79a53c6f 100644
+--- a/src/lib/stores/index.ts
++++ b/src/lib/stores/index.ts
+@@ -1,4 +1,3 @@
+-import { APP_NAME } from '$lib/constants';
+ import { type Writable, writable } from 'svelte/store';
+ import type { ModelConfig } from '$lib/apis';
+ import type { Banner } from '$lib/types';
+@@ -7,7 +6,8 @@ import type { Socket } from 'socket.io-client';
+ import emojiShortCodes from '$lib/emoji-shortcodes.json';
+ 
+ // Backend
+-export const WEBUI_NAME = writable(APP_NAME);
++export const WEBUI_NAME = writable("OPEA");
++export const PROJECT_IMG = writable("/Intel.png");
+ export const config: Writable<Config | undefined> = writable(undefined);
+ export const user: Writable<SessionUser | undefined> = writable(undefined);
+ 
+diff --git a/src/routes/(app)/+layout.svelte b/src/routes/(app)/+layout.svelte
+index fd9a33111..7d69ba407 100644
+--- a/src/routes/(app)/+layout.svelte
++++ b/src/routes/(app)/+layout.svelte
+@@ -237,8 +237,8 @@
+ </script>
+ 
+ <SettingsModal bind:show={$showSettings} />
+-<ChangelogModal bind:show={$showChangelog} />
+-
++<!-- <ChangelogModal bind:show={$showChangelog} /> -->
++<!-- 
+ {#if version && compareVersion(version.latest, version.current) && ($settings?.showUpdateToast ?? true)}
+ 	<div class=" absolute bottom-8 right-8 z-50" in:fade={{ duration: 100 }}>
+ 		<UpdateInfoToast
+@@ -249,7 +249,7 @@
+ 			}}
+ 		/>
+ 	</div>
+-{/if}
++{/if} -->
+ 
+ <div class="app relative">
+ 	<div
+diff --git a/src/routes/(app)/+page.svelte b/src/routes/(app)/+page.svelte
+index 08026e7aa..877796907 100644
+--- a/src/routes/(app)/+page.svelte
++++ b/src/routes/(app)/+page.svelte
+@@ -3,5 +3,5 @@
+ 	import Help from '$lib/components/layout/Help.svelte';
+ </script>
+ 
+-<Help />
++<!-- <Help /> -->
+ <Chat />
+diff --git a/src/routes/(app)/admin/+layout.svelte b/src/routes/(app)/admin/+layout.svelte
+index bc3caa338..e783f3706 100644
+--- a/src/routes/(app)/admin/+layout.svelte
++++ b/src/routes/(app)/admin/+layout.svelte
+@@ -58,7 +58,7 @@
+ 							href="/admin">{$i18n.t('Users')}</a
+ 						>
+ 
+-						<a
++						<!-- <a
+ 							class="min-w-fit rounded-full p-1.5 {$page.url.pathname.includes('/admin/evaluations')
+ 								? ''
+ 								: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
+@@ -70,7 +70,7 @@
+ 								? ''
+ 								: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
+ 							href="/admin/functions">{$i18n.t('Functions')}</a
+-						>
++						> -->
+ 
+ 						<a
+ 							class="min-w-fit rounded-full p-1.5 {$page.url.pathname.includes('/admin/settings')
+diff --git a/src/routes/(app)/workspace/+layout.svelte b/src/routes/(app)/workspace/+layout.svelte
+index 0240e693c..9ab240430 100644
+--- a/src/routes/(app)/workspace/+layout.svelte
++++ b/src/routes/(app)/workspace/+layout.svelte
+@@ -76,7 +76,7 @@
+ 					<div
+ 						class="flex gap-1 scrollbar-none overflow-x-auto w-fit text-center text-sm font-medium rounded-full bg-transparent py-1 touch-auto pointer-events-auto"
+ 					>
+-						{#if $user?.role === 'admin' || $user?.permissions?.workspace?.models}
++						<!-- {#if $user?.role === 'admin' || $user?.permissions?.workspace?.models}
+ 							<a
+ 								class="min-w-fit rounded-full p-1.5 {$page.url.pathname.includes(
+ 									'/workspace/models'
+@@ -85,7 +85,7 @@
+ 									: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
+ 								href="/workspace/models">{$i18n.t('Models')}</a
+ 							>
+-						{/if}
++						{/if} -->
+ 
+ 						{#if $user?.role === 'admin' || $user?.permissions?.workspace?.knowledge}
+ 							<a
+@@ -111,7 +111,7 @@
+ 							>
+ 						{/if}
+ 
+-						{#if $user?.role === 'admin' || $user?.permissions?.workspace?.tools}
++						<!-- {#if $user?.role === 'admin' || $user?.permissions?.workspace?.tools}
+ 							<a
+ 								class="min-w-fit rounded-full p-1.5 {$page.url.pathname.includes('/workspace/tools')
+ 									? ''
+@@ -120,7 +120,7 @@
+ 							>
+ 								{$i18n.t('Tools')}
+ 							</a>
+-						{/if}
++						{/if} -->
+ 					</div>
+ 				</div>
+ 
+diff --git a/src/routes/(app)/workspace/+page.svelte b/src/routes/(app)/workspace/+page.svelte
+index 65f9d4cef..e64ecd42e 100644
+--- a/src/routes/(app)/workspace/+page.svelte
++++ b/src/routes/(app)/workspace/+page.svelte
+@@ -5,19 +5,22 @@
+ 
+ 	onMount(() => {
+ 		if ($user?.role !== 'admin') {
+-			if ($user?.permissions?.workspace?.models) {
+-				goto('/workspace/models');
+-			} else if ($user?.permissions?.workspace?.knowledge) {
++			// if ($user?.permissions?.workspace?.models) {
++			// 	goto('/workspace/models');
++			// } else 
++			if ($user?.permissions?.workspace?.knowledge) {
+ 				goto('/workspace/knowledge');
+ 			} else if ($user?.permissions?.workspace?.prompts) {
+ 				goto('/workspace/prompts');
+-			} else if ($user?.permissions?.workspace?.tools) {
+-				goto('/workspace/tools');
+-			} else {
++			} 
++			// else if ($user?.permissions?.workspace?.tools) {
++			// 	goto('/workspace/tools');
++			// } 
++			else {
+ 				goto('/');
+ 			}
+ 		} else {
+-			goto('/workspace/models');
++			goto('/workspace/knowledge');
+ 		}
+ 	});
+ </script>
+diff --git a/src/routes/+layout.svelte b/src/routes/+layout.svelte
+index 6f349b791..c32374470 100644
+--- a/src/routes/+layout.svelte
++++ b/src/routes/+layout.svelte
+@@ -26,7 +26,9 @@
+ 		isLastActiveTab,
+ 		isApp,
+ 		appInfo,
+-		toolServers
++		toolServers,
++		PROJECT_IMG
++
+ 	} from '$lib/stores';
+ 	import { goto } from '$app/navigation';
+ 	import { page } from '$app/stores';
+@@ -506,6 +508,8 @@
+ 		let backendConfig = null;
+ 		try {
+ 			backendConfig = await getBackendConfig();
++			console.log('backendConfig', backendConfig);
++			
+ 			console.log('Backend config:', backendConfig);
+ 		} catch (error) {
+ 			console.error('Error loading backend config:', error);
+@@ -529,6 +533,7 @@
+ 			// Save Backend Status to Store
+ 			await config.set(backendConfig);
+ 			await WEBUI_NAME.set(backendConfig.name);
++			await PROJECT_IMG.set(backendConfig.project_img_url);
+ 
+ 			if ($config) {
+ 				await setupSocket($config.features?.enable_websocket ?? true);
+@@ -607,7 +612,7 @@
+ 
+ <svelte:head>
+ 	<title>{$WEBUI_NAME}</title>
+-	<link crossorigin="anonymous" rel="icon" href="{WEBUI_BASE_URL}/static/favicon.png" />
++	<link crossorigin="anonymous" rel="icon" href="{$PROJECT_IMG}" />
+ 
+ 	<!-- rosepine themes have been disabled as it's not up to date with our latest version. -->
+ 	<!-- feel free to make a PR to fix if anyone wants to see it return -->
+diff --git a/static/Intel.png b/static/Intel.png
+new file mode 100644
+index 000000000..bab0769c0
+Binary files /dev/null and b/static/Intel.png differ
