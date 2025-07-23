@@ -7,7 +7,7 @@ import emojiShortCodes from '$lib/emoji-shortcodes.json';
 
 // Backend
 export const WEBUI_NAME = writable("OPEA");
-export const PROJECT_IMG = writable("/Intel.png");
+export const PROJECT_IMG = writable("/user.png");
 export const config: Writable<Config | undefined> = writable(undefined);
 export const user: Writable<SessionUser | undefined> = writable(undefined);
 

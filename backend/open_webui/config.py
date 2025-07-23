@@ -331,7 +331,7 @@ PROJECT_NAME = PersistentConfig(
 )
 
 PROJECT_IMG_URL = PersistentConfig(
-    "PROJECT_IMG_URL", "auth.project_img_url", os.environ.get("PROJECT_IMG_URL", "/Intel.png")
+    "PROJECT_IMG_URL", "auth.project_img_url", os.environ.get("PROJECT_IMG_URL", "/user.png")
 )
 
 JWT_EXPIRES_IN = PersistentConfig(
