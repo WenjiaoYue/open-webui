@@ -3927,3 +3927,25 @@ index 6f349b791..c32374470 100644
  
  	<!-- rosepine themes have been disabled as it's not up to date with our latest version. -->
  	<!-- feel free to make a PR to fix if anyone wants to see it return -->
+diff --git a/src/routes/auth/+page.svelte b/src/routes/auth/+page.svelte
+index be8989002..13e33ebff 100644
+--- a/src/routes/auth/+page.svelte
++++ b/src/routes/auth/+page.svelte
+@@ -9,7 +9,7 @@
+ 	import { ldapUserSignIn, getSessionUser, userSignIn, userSignUp } from '$lib/apis/auths';
+ 
+ 	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
+-	import { WEBUI_NAME, config, user, socket } from '$lib/stores';
++	import { WEBUI_NAME, config, user, socket, PROJECT_IMG } from '$lib/stores';
+ 
+ 	import { generateInitialsImage, canvasPixelTest } from '$lib/utils';
+ 
+@@ -182,7 +182,7 @@
+ 					<img
+ 						id="logo"
+ 						crossorigin="anonymous"
+-						src="{WEBUI_BASE_URL}/static/splash.png"
++						src={$PROJECT_IMG}
+ 						class=" w-6 rounded-full"
+ 						alt="logo"
+ 					/>

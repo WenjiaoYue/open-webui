@@ -9,7 +9,7 @@
 	import { ldapUserSignIn, getSessionUser, userSignIn, userSignUp } from '$lib/apis/auths';
 
 	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
-	import { WEBUI_NAME, config, user, socket } from '$lib/stores';
+	import { WEBUI_NAME, config, user, socket, PROJECT_IMG } from '$lib/stores';
 
 	import { generateInitialsImage, canvasPixelTest } from '$lib/utils';
 
@@ -182,7 +182,7 @@
 					<img
 						id="logo"
 						crossorigin="anonymous"
-						src="{WEBUI_BASE_URL}/static/splash.png"
+						src={$PROJECT_IMG}
 						class=" w-6 rounded-full"
 						alt="logo"
 					/>
