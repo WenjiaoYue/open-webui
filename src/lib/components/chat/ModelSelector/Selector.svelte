@@ -19,7 +19,10 @@
 		mobile,
 		temporaryChatEnabled,
 		settings,
-		config
+		config,
+
+		PROJECT_IMG
+
 	} from '$lib/stores';
 	import { toast } from 'svelte-sonner';
 	import { capitalizeFirstLetter, sanitizeResponseContent, splitStream } from '$lib/utils';
@@ -501,7 +504,7 @@
 												placement="top-start"
 											>
 												<img
-													src={item.model?.info?.meta?.profile_image_url ?? '/static/favicon.png'}
+													src={$PROJECT_IMG}
 													alt="Model"
 													class="rounded-full size-5 flex items-center mr-2"
 												/>

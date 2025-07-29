@@ -18,7 +18,10 @@
 		tools,
 		user as _user,
 		showControls,
-		TTSWorker
+		TTSWorker,
+
+		PROJECT_IMG
+
 	} from '$lib/stores';
 
 	import {
@@ -410,7 +413,7 @@
 												?.profile_image_url ??
 												($i18n.language === 'dg-DG'
 													? `/doge.png`
-													: `${WEBUI_BASE_URL}/static/favicon.png`)}
+													: $PROJECT_IMG)}
 										/>
 										<div class="translate-y-[0.5px]">
 											Talking to <span class=" font-medium">{atSelectedModel.name}</span>

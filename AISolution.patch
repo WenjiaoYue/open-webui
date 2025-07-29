@@ -96,7 +96,7 @@ index c9d71a4a0..6033496ea 100644
  
  TRUSTED_SIGNATURE_KEY = os.environ.get("TRUSTED_SIGNATURE_KEY", "")
 diff --git a/backend/open_webui/main.py b/backend/open_webui/main.py
-index 56ea17fa1..f90f8dd90 100644
+index 56ea17fa1..21c6d6c0f 100644
 --- a/backend/open_webui/main.py
 +++ b/backend/open_webui/main.py
 @@ -178,12 +178,18 @@ from open_webui.config import (
@@ -212,7 +212,7 @@ index 56ea17fa1..f90f8dd90 100644
              "description": "Open WebUI is an open, extensible, user-friendly interface for AI that adapts to your workflow.",
              "start_url": "/",
              "display": "standalone",
-@@ -1461,8 +1477,8 @@ async def get_manifest_json():
+@@ -1461,10 +1477,10 @@ async def get_manifest_json():
  async def get_opensearch_xml():
      xml_content = rf"""
      <OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/" xmlns:moz="http://www.mozilla.org/2006/browser/search/">
@@ -221,8 +221,24 @@ index 56ea17fa1..f90f8dd90 100644
 +    <ShortName>{app.state.config.PROJECT_NAME}</ShortName>
 +    <Description>Search {app.state.config.PROJECT_NAME}</Description>
      <InputEncoding>UTF-8</InputEncoding>
-     <Image width="16" height="16" type="image/x-icon">{app.state.config.WEBUI_URL}/static/favicon.png</Image>
+-    <Image width="16" height="16" type="image/x-icon">{app.state.config.WEBUI_URL}/static/favicon.png</Image>
++    <Image width="16" height="16" type="image/x-icon">{app.state.config.WEBUI_URL}/static/user.png</Image>
      <Url type="text/html" method="get" template="{app.state.config.WEBUI_URL}/?q={"{searchTerms}"}"/>
+     <moz:SearchForm>{app.state.config.WEBUI_URL}</moz:SearchForm>
+     </OpenSearchDescription>
+diff --git a/backend/open_webui/models/models.py b/backend/open_webui/models/models.py
+index 7df8d8656..6241f226b 100755
+--- a/backend/open_webui/models/models.py
++++ b/backend/open_webui/models/models.py
+@@ -35,7 +35,7 @@ class ModelParams(BaseModel):
+ 
+ # ModelMeta is a model for the data stored in the meta field of the Model table
+ class ModelMeta(BaseModel):
+-    profile_image_url: Optional[str] = "/static/favicon.png"
++    profile_image_url: Optional[str] = "/static/user.png"
+ 
+     description: Optional[str] = None
+     """
 diff --git a/backend/open_webui/retrieval/models/base_reranker.py b/backend/open_webui/retrieval/models/base_reranker.py
 new file mode 100644
 index 000000000..b5c407648
@@ -732,6 +748,19 @@ index 13f012483..282cff7a3 100644
              )
          else:
              return query_collection(
+diff --git a/backend/open_webui/test/apps/webui/routers/test_models.py b/backend/open_webui/test/apps/webui/routers/test_models.py
+index c16ca9d07..6b0f3c580 100644
+--- a/backend/open_webui/test/apps/webui/routers/test_models.py
++++ b/backend/open_webui/test/apps/webui/routers/test_models.py
+@@ -25,7 +25,7 @@ class TestModels(AbstractPostgresTest):
+                     "base_model_id": "base-model-id",
+                     "name": "Hello World",
+                     "meta": {
+-                        "profile_image_url": "/static/favicon.png",
++                        "profile_image_url": "/static/user.png",
+                         "description": "description",
+                         "capabilities": None,
+                         "model_config": {},
 diff --git a/backend/open_webui/utils/middleware.py b/backend/open_webui/utils/middleware.py
 index 4070bc697..182b6160c 100644
 --- a/backend/open_webui/utils/middleware.py
@@ -762,6 +791,20 @@ index 4070bc697..182b6160c 100644
                              webhook_url,
                              f"{title} - {request.app.state.config.WEBUI_URL}/c/{metadata['chat_id']}\n\n{content}",
                              {
+diff --git a/backend/open_webui/utils/models.py b/backend/open_webui/utils/models.py
+index 95d360bed..6864bbf06 100644
+--- a/backend/open_webui/utils/models.py
++++ b/backend/open_webui/utils/models.py
+@@ -100,7 +100,8 @@ async def get_all_models(request, user: UserModel = None):
+                     "arena": True,
+                 }
+             ]
+-        models = models + arena_models
++        # models = models + arena_models
++        models = models
+ 
+     global_action_ids = [
+         function.id for function in Functions.get_global_action_functions()
 diff --git a/backend/open_webui/utils/oauth.py b/backend/open_webui/utils/oauth.py
 index 9ebe0e6dc..448e229e0 100644
 --- a/backend/open_webui/utils/oauth.py
@@ -2171,6 +2214,49 @@ index 0929e0a69..4fe9c9c48 100644
  export const getChangelog = async () => {
  	let error = null;
  
+diff --git a/src/lib/components/NotificationToast.svelte b/src/lib/components/NotificationToast.svelte
+index 0d3f69af3..fcd22c0ae 100644
+--- a/src/lib/components/NotificationToast.svelte
++++ b/src/lib/components/NotificationToast.svelte
+@@ -1,5 +1,5 @@
+ <script lang="ts">
+-	import { settings, playingNotificationSound, isLastActiveTab } from '$lib/stores';
++	import { settings, playingNotificationSound, isLastActiveTab, PROJECT_IMG } from '$lib/stores';
+ 	import DOMPurify from 'dompurify';
+ 
+ 	import { marked } from 'marked';
+@@ -38,7 +38,9 @@
+ 	}}
+ >
+ 	<div class="shrink-0 self-top -translate-y-0.5">
+-		<img src={'/static/favicon.png'} alt="favicon" class="size-7 rounded-full" />
++		<img 
++		src={$PROJECT_IMG}
++		alt="favicon" class="size-7 rounded-full" />
+ 	</div>
+ 
+ 	<div>
+diff --git a/src/lib/components/OnBoarding.svelte b/src/lib/components/OnBoarding.svelte
+index 1976e5c6e..21396a2bd 100644
+--- a/src/lib/components/OnBoarding.svelte
++++ b/src/lib/components/OnBoarding.svelte
+@@ -7,6 +7,7 @@
+ 	import Marquee from './common/Marquee.svelte';
+ 	import SlideShow from './common/SlideShow.svelte';
+ 	import ArrowRightCircle from './icons/ArrowRightCircle.svelte';
++	import { PROJECT_IMG } from '$lib/stores';
+ 
+ 	export let show = true;
+ 	export let getStartedHandler = () => {};
+@@ -46,7 +47,7 @@
+ 					<img
+ 						id="logo"
+ 						crossorigin="anonymous"
+-						src="{WEBUI_BASE_URL}/static/favicon.png"
++						src={$PROJECT_IMG}
+ 						class=" w-6 rounded-full"
+ 						alt="logo"
+ 					/>
 diff --git a/src/lib/components/admin/Settings.svelte b/src/lib/components/admin/Settings.svelte
 index c26604d6c..4ba7c508e 100644
 --- a/src/lib/components/admin/Settings.svelte
@@ -2867,6 +2953,36 @@ index adb4fbdf9..bafee4687 100644
  
  			<div class="mb-3.5">
  				<div class=" mb-2.5 text-base font-medium">{$i18n.t('UI')}</div>
+diff --git a/src/lib/components/admin/Settings/Models.svelte b/src/lib/components/admin/Settings/Models.svelte
+index d5b2fc627..6e7b0887a 100644
+--- a/src/lib/components/admin/Settings/Models.svelte
++++ b/src/lib/components/admin/Settings/Models.svelte
+@@ -6,7 +6,15 @@
+ 	import { onMount, getContext, tick } from 'svelte';
+ 	const i18n = getContext('i18n');
+ 
+-	import { WEBUI_NAME, config, mobile, models as _models, settings, user } from '$lib/stores';
++	import {
++		WEBUI_NAME,
++		config,
++		mobile,
++		models as _models,
++		settings,
++		user,
++		PROJECT_IMG
++	} from '$lib/stores';
+ 	import {
+ 		createNewModel,
+ 		deleteAllModels,
+@@ -299,7 +307,7 @@
+ 										: 'opacity-50 dark:opacity-50'} "
+ 								>
+ 									<img
+-										src={model?.meta?.profile_image_url ?? '/static/favicon.png'}
++										src={$PROJECT_IMG}
+ 										alt="modelfile profile"
+ 										class=" rounded-full w-full h-auto object-cover"
+ 									/>
 diff --git a/src/lib/components/admin/Settings/ProjectInfo.svelte b/src/lib/components/admin/Settings/ProjectInfo.svelte
 new file mode 100644
 index 000000000..4e93088e7
@@ -3118,6 +3234,27 @@ index 000000000..4e93088e7
 +		</div>
 +	</div>
 +</form>
+diff --git a/src/lib/components/app/AppSidebar.svelte b/src/lib/components/app/AppSidebar.svelte
+index 458d710ff..d4d834301 100644
+--- a/src/lib/components/app/AppSidebar.svelte
++++ b/src/lib/components/app/AppSidebar.svelte
+@@ -1,6 +1,7 @@
+ <script lang="ts">
+ 	import Tooltip from '$lib/components/common/Tooltip.svelte';
+ 	import Plus from '$lib/components/icons/Plus.svelte';
++	import { PROJECT_IMG } from '$lib/stores';
+ 
+ 	let selected = '';
+ </script>
+@@ -49,7 +50,7 @@
+ 			}}
+ 		>
+ 			<img
+-				src="/static/favicon.png"
++				src={$PROJECT_IMG}
+ 				class="size-10 {selected === '' ? 'rounded-2xl' : 'rounded-full'}"
+ 				alt="logo"
+ 				draggable="false"
 diff --git a/src/lib/components/channel/MessageInput.svelte b/src/lib/components/channel/MessageInput.svelte
 index 9f495a8de..dcd3187e2 100644
 --- a/src/lib/components/channel/MessageInput.svelte
@@ -3140,6 +3277,50 @@ index 9f495a8de..dcd3187e2 100644
  
  								<div class=" flex items-center">
  									<div class=" flex items-center">
+diff --git a/src/lib/components/channel/Messages/Message.svelte b/src/lib/components/channel/Messages/Message.svelte
+index 998938806..6972318dd 100644
+--- a/src/lib/components/channel/Messages/Message.svelte
++++ b/src/lib/components/channel/Messages/Message.svelte
+@@ -13,7 +13,7 @@
+ 	import { getContext, onMount } from 'svelte';
+ 	const i18n = getContext<Writable<i18nType>>('i18n');
+ 
+-	import { settings, user, shortCodesToEmojis } from '$lib/stores';
++	import { settings, user, shortCodesToEmojis, PROJECT_IMG } from '$lib/stores';
+ 
+ 	import { WEBUI_BASE_URL } from '$lib/constants';
+ 
+@@ -144,7 +144,7 @@
+ 					<ProfilePreview user={message.user}>
+ 						<ProfileImage
+ 							src={message.user?.profile_image_url ??
+-								($i18n.language === 'dg-DG' ? `/doge.png` : `${WEBUI_BASE_URL}/static/favicon.png`)}
++								($i18n.language === 'dg-DG' ? `/doge.png` : $PROJECT_IMG)}
+ 							className={'size-8 translate-y-1 ml-0.5'}
+ 						/>
+ 					</ProfilePreview>
+diff --git a/src/lib/components/channel/Messages/Message/ProfilePreview.svelte b/src/lib/components/channel/Messages/Message/ProfilePreview.svelte
+index a9db05b1e..2d3897535 100644
+--- a/src/lib/components/channel/Messages/Message/ProfilePreview.svelte
++++ b/src/lib/components/channel/Messages/Message/ProfilePreview.svelte
+@@ -4,7 +4,7 @@
+ 
+ 	import { flyAndScale } from '$lib/utils/transitions';
+ 	import { WEBUI_BASE_URL } from '$lib/constants';
+-	import { activeUserIds } from '$lib/stores';
++	import { activeUserIds, PROJECT_IMG } from '$lib/stores';
+ 
+ 	export let side = 'right';
+ 	export let align = 'top';
+@@ -40,7 +40,7 @@
+ 					<div class="py-8 relative bg-gray-900 rounded-t-lg">
+ 						<img
+ 							crossorigin="anonymous"
+-							src={user?.profile_image_url ?? `${WEBUI_BASE_URL}/static/favicon.png`}
++							src={$PROJECT_IMG}
+ 							class=" absolute -bottom-5 left-3 size-12 ml-0.5 object-cover rounded-full -translate-y-[1px]"
+ 							alt="profile"
+ 						/>
 diff --git a/src/lib/components/chat/ChatPlaceholder.svelte b/src/lib/components/chat/ChatPlaceholder.svelte
 index c2a44ee9c..ee526f6ca 100644
 --- a/src/lib/components/chat/ChatPlaceholder.svelte
@@ -3163,10 +3344,31 @@ index c2a44ee9c..ee526f6ca 100644
  								alt="logo"
  								draggable="false"
 diff --git a/src/lib/components/chat/MessageInput.svelte b/src/lib/components/chat/MessageInput.svelte
-index ca6487cf5..6b1c196f8 100644
+index ca6487cf5..45545183a 100644
 --- a/src/lib/components/chat/MessageInput.svelte
 +++ b/src/lib/components/chat/MessageInput.svelte
-@@ -1264,7 +1264,7 @@
+@@ -18,7 +18,10 @@
+ 		tools,
+ 		user as _user,
+ 		showControls,
+-		TTSWorker
++		TTSWorker,
++
++		PROJECT_IMG
++
+ 	} from '$lib/stores';
+ 
+ 	import {
+@@ -410,7 +413,7 @@
+ 												?.profile_image_url ??
+ 												($i18n.language === 'dg-DG'
+ 													? `/doge.png`
+-													: `${WEBUI_BASE_URL}/static/favicon.png`)}
++													: $PROJECT_IMG)}
+ 										/>
+ 										<div class="translate-y-[0.5px]">
+ 											Talking to <span class=" font-medium">{atSelectedModel.name}</span>
+@@ -1264,7 +1267,7 @@
  											</div>
  										{:else if prompt === '' && files.length === 0 && ($_user?.role === 'admin' || ($_user?.permissions?.chat?.call ?? true))}
  											<div class=" flex items-center">
@@ -3175,7 +3377,7 @@ index ca6487cf5..6b1c196f8 100644
  													<button
  														class=" bg-black text-white hover:bg-gray-900 dark:bg-white dark:text-black dark:hover:bg-gray-100 transition rounded-full p-1.5 self-center"
  														type="button"
-@@ -1322,7 +1322,7 @@
+@@ -1322,7 +1325,7 @@
  													>
  														<Headphone className="size-5" />
  													</button>
@@ -3184,6 +3386,120 @@ index ca6487cf5..6b1c196f8 100644
  											</div>
  										{:else}
  											<div class=" flex items-center">
+diff --git a/src/lib/components/chat/MessageInput/CallOverlay.svelte b/src/lib/components/chat/MessageInput/CallOverlay.svelte
+index c993681c5..e83eeea6f 100644
+--- a/src/lib/components/chat/MessageInput/CallOverlay.svelte
++++ b/src/lib/components/chat/MessageInput/CallOverlay.svelte
+@@ -756,11 +756,11 @@
+ 								: rmsLevel * 100 > 1
+ 									? 'size-14'
+ 									: 'size-12'}  transition-all rounded-full {(model?.info?.meta
+-							?.profile_image_url ?? '/static/favicon.png') !== '/static/favicon.png'
++							?.profile_image_url ?? '/static/user.png') !== '/static/user.png'
+ 							? ' bg-cover bg-center bg-no-repeat'
+ 							: 'bg-black dark:bg-white'}  bg-black dark:bg-white"
+-						style={(model?.info?.meta?.profile_image_url ?? '/static/favicon.png') !==
+-						'/static/favicon.png'
++						style={(model?.info?.meta?.profile_image_url ?? '/static/user.png') !==
++						'/static/user.png'
+ 							? `background-image: url('${model?.info?.meta?.profile_image_url}');`
+ 							: ''}
+ 					/>
+@@ -838,11 +838,11 @@
+ 									: rmsLevel * 100 > 1
+ 										? 'size-44'
+ 										: 'size-40'}  transition-all rounded-full {(model?.info?.meta
+-								?.profile_image_url ?? '/static/favicon.png') !== '/static/favicon.png'
++								?.profile_image_url ?? '/static/user.png') !== '/static/user.png'
+ 								? ' bg-cover bg-center bg-no-repeat'
+ 								: 'bg-black dark:bg-white'} "
+-							style={(model?.info?.meta?.profile_image_url ?? '/static/favicon.png') !==
+-							'/static/favicon.png'
++							style={(model?.info?.meta?.profile_image_url ?? '/static/user.png') !==
++							'/static/user.png'
+ 								? `background-image: url('${model?.info?.meta?.profile_image_url}');`
+ 								: ''}
+ 						/>
+diff --git a/src/lib/components/chat/MessageInput/Commands/Models.svelte b/src/lib/components/chat/MessageInput/Commands/Models.svelte
+index 00191580b..5c6c187fc 100644
+--- a/src/lib/components/chat/MessageInput/Commands/Models.svelte
++++ b/src/lib/components/chat/MessageInput/Commands/Models.svelte
+@@ -4,7 +4,7 @@
+ 	import { createEventDispatcher, onMount } from 'svelte';
+ 	import { tick, getContext } from 'svelte';
+ 
+-	import { models } from '$lib/stores';
++	import { models, PROJECT_IMG } from '$lib/stores';
+ 
+ 	const i18n = getContext('i18n');
+ 
+@@ -91,7 +91,7 @@
+ 						>
+ 							<div class="flex font-medium text-black dark:text-gray-100 line-clamp-1">
+ 								<img
+-									src={model?.info?.meta?.profile_image_url ?? '/static/favicon.png'}
++									src={$PROJECT_IMG}
+ 									alt={model?.name ?? model.id}
+ 									class="rounded-full size-6 items-center mr-2"
+ 								/>
+diff --git a/src/lib/components/chat/Messages/ProfileImage.svelte b/src/lib/components/chat/Messages/ProfileImage.svelte
+index dce2385a5..2fd760cba 100644
+--- a/src/lib/components/chat/Messages/ProfileImage.svelte
++++ b/src/lib/components/chat/Messages/ProfileImage.svelte
+@@ -2,13 +2,13 @@
+ 	import { WEBUI_BASE_URL } from '$lib/constants';
+ 
+ 	export let className = 'size-8';
+-	export let src = `${WEBUI_BASE_URL}/static/favicon.png`;
++	export let src = `${WEBUI_BASE_URL}/static/user.png`;
+ </script>
+ 
+ <img
+ 	crossorigin="anonymous"
+ 	src={src === ''
+-		? `${WEBUI_BASE_URL}/static/favicon.png`
++		? `${WEBUI_BASE_URL}/static/user.png`
+ 		: src.startsWith(WEBUI_BASE_URL) ||
+ 			  src.startsWith('https://www.gravatar.com/avatar/') ||
+ 			  src.startsWith('data:') ||
+diff --git a/src/lib/components/chat/Messages/ResponseMessage.svelte b/src/lib/components/chat/Messages/ResponseMessage.svelte
+index 72459cd3e..c6b134958 100644
+--- a/src/lib/components/chat/Messages/ResponseMessage.svelte
++++ b/src/lib/components/chat/Messages/ResponseMessage.svelte
+@@ -590,7 +590,7 @@
+ 		<div class={`shrink-0 ltr:mr-3 rtl:ml-3`}>
+ 			<ProfileImage
+ 				src={model?.info?.meta?.profile_image_url ??
+-					($i18n.language === 'dg-DG' ? `/doge.png` : `${WEBUI_BASE_URL}/static/favicon.png`)}
++					($i18n.language === 'dg-DG' ? `/doge.png` : `${WEBUI_BASE_URL}/static/user.png`)}
+ 				className={'size-8'}
+ 			/>
+ 		</div>
+diff --git a/src/lib/components/chat/ModelSelector/Selector.svelte b/src/lib/components/chat/ModelSelector/Selector.svelte
+index dcbc7ca18..736975c10 100644
+--- a/src/lib/components/chat/ModelSelector/Selector.svelte
++++ b/src/lib/components/chat/ModelSelector/Selector.svelte
+@@ -19,7 +19,10 @@
+ 		mobile,
+ 		temporaryChatEnabled,
+ 		settings,
+-		config
++		config,
++
++		PROJECT_IMG
++
+ 	} from '$lib/stores';
+ 	import { toast } from 'svelte-sonner';
+ 	import { capitalizeFirstLetter, sanitizeResponseContent, splitStream } from '$lib/utils';
+@@ -501,7 +504,7 @@
+ 												placement="top-start"
+ 											>
+ 												<img
+-													src={item.model?.info?.meta?.profile_image_url ?? '/static/favicon.png'}
++													src={$PROJECT_IMG}
+ 													alt="Model"
+ 													class="rounded-full size-5 flex items-center mr-2"
+ 												/>
 diff --git a/src/lib/components/chat/Placeholder.svelte b/src/lib/components/chat/Placeholder.svelte
 index 545d43c44..f7e5d72a7 100644
 --- a/src/lib/components/chat/Placeholder.svelte
@@ -3647,6 +3963,67 @@ index 3680a4daa..68fe7e66e 100644
  
  				<a
  					class="flex rounded-md py-2 px-3 w-full hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+diff --git a/src/lib/components/workspace/Models.svelte b/src/lib/components/workspace/Models.svelte
+index c9137fb85..f63969a83 100644
+--- a/src/lib/components/workspace/Models.svelte
++++ b/src/lib/components/workspace/Models.svelte
+@@ -256,7 +256,7 @@
+ 								: 'opacity-50 dark:opacity-50'} "
+ 						>
+ 							<img
+-								src={model?.meta?.profile_image_url ?? '/static/favicon.png'}
++								src={model?.meta?.profile_image_url ?? '/static/user.png'}
+ 								alt="modelfile profile"
+ 								class=" rounded-full w-full h-auto object-cover"
+ 							/>
+diff --git a/src/lib/components/workspace/Models/ModelEditor.svelte b/src/lib/components/workspace/Models/ModelEditor.svelte
+index 4bd875ee2..d358b57cb 100644
+--- a/src/lib/components/workspace/Models/ModelEditor.svelte
++++ b/src/lib/components/workspace/Models/ModelEditor.svelte
+@@ -1,6 +1,6 @@
+ <script lang="ts">
+ 	import { onMount, getContext, tick } from 'svelte';
+-	import { models, tools, functions, knowledge as knowledgeCollections, user } from '$lib/stores';
++	import { models, tools, functions, knowledge as knowledgeCollections, user, PROJECT_IMG } from '$lib/stores';
+ 
+ 	import AdvancedParams from '$lib/components/chat/Settings/Advanced/AdvancedParams.svelte';
+ 	import Tags from '$lib/components/common/Tags.svelte';
+@@ -61,7 +61,7 @@
+ 		base_model_id: null,
+ 		name: '',
+ 		meta: {
+-			profile_image_url: '/static/favicon.png',
++			profile_image_url: '/static/user.png',
+ 			description: '',
+ 			suggestion_prompts: null,
+ 			tags: []
+@@ -367,7 +367,7 @@
+ 					<div class="self-center">
+ 						<button
+ 							class="rounded-xl flex shrink-0 items-center {info.meta.profile_image_url !==
+-							'/static/favicon.png'
++							'/static/user.png'
+ 								? 'bg-transparent'
+ 								: 'bg-white'} shadow-xl group relative"
+ 							type="button"
+@@ -383,7 +383,7 @@
+ 								/>
+ 							{:else}
+ 								<img
+-									src="/static/favicon.png"
++									src={$PROJECT_IMG}
+ 									alt="model profile"
+ 									class=" rounded-xl size-72 md:size-60 object-cover shrink-0"
+ 								/>
+@@ -419,7 +419,7 @@
+ 							<button
+ 								class="px-2 py-1 text-gray-500 rounded-lg text-xs"
+ 								on:click={() => {
+-									info.meta.profile_image_url = '/static/favicon.png';
++									info.meta.profile_image_url = '/static/user.png';
+ 								}}
+ 								type="button"
+ 							>
 diff --git a/src/lib/components/workspace/Prompts.svelte b/src/lib/components/workspace/Prompts.svelte
 index 0c16b49a2..396498fdc 100644
 --- a/src/lib/components/workspace/Prompts.svelte
@@ -3886,8 +4263,21 @@ index 65f9d4cef..e64ecd42e 100644
  		}
  	});
  </script>
+diff --git a/src/routes/(app)/workspace/models/create/+page.svelte b/src/routes/(app)/workspace/models/create/+page.svelte
+index 48fd5ccab..63e3b0372 100644
+--- a/src/routes/(app)/workspace/models/create/+page.svelte
++++ b/src/routes/(app)/workspace/models/create/+page.svelte
+@@ -30,7 +30,7 @@
+ 				...modelInfo,
+ 				meta: {
+ 					...modelInfo.meta,
+-					profile_image_url: modelInfo.meta.profile_image_url ?? '/static/favicon.png',
++					profile_image_url: modelInfo.meta.profile_image_url ?? '/static/user.png',
+ 					suggestion_prompts: modelInfo.meta.suggestion_prompts
+ 						? modelInfo.meta.suggestion_prompts.filter((prompt) => prompt.content !== '')
+ 						: null
 diff --git a/src/routes/+layout.svelte b/src/routes/+layout.svelte
-index 6f349b791..c32374470 100644
+index 6f349b791..9c93eff05 100644
 --- a/src/routes/+layout.svelte
 +++ b/src/routes/+layout.svelte
 @@ -26,7 +26,9 @@
@@ -3901,7 +4291,26 @@ index 6f349b791..c32374470 100644
  	} from '$lib/stores';
  	import { goto } from '$app/navigation';
  	import { page } from '$app/stores';
-@@ -506,6 +508,8 @@
+@@ -263,7 +265,8 @@
+ 						if ($settings?.notificationEnabled ?? false) {
+ 							new Notification(`${title} | Open WebUI`, {
+ 								body: content,
+-								icon: `${WEBUI_BASE_URL}/static/favicon.png`
++								icon: $PROJECT_IMG
++
+ 							});
+ 						}
+ 					}
+@@ -412,7 +415,7 @@
+ 					if ($settings?.notificationEnabled ?? false) {
+ 						new Notification(`${data?.user?.name} (#${event?.channel?.name}) | Open WebUI`, {
+ 							body: data?.content,
+-							icon: data?.user?.profile_image_url ?? `${WEBUI_BASE_URL}/static/favicon.png`
++							icon: data?.user?.profile_image_url ?? `${WEBUI_BASE_URL}/static/user.png`
+ 						});
+ 					}
+ 				}
+@@ -506,6 +509,8 @@
  		let backendConfig = null;
  		try {
  			backendConfig = await getBackendConfig();
@@ -3910,7 +4319,7 @@ index 6f349b791..c32374470 100644
  			console.log('Backend config:', backendConfig);
  		} catch (error) {
  			console.error('Error loading backend config:', error);
-@@ -529,6 +533,7 @@
+@@ -529,6 +534,7 @@
  			// Save Backend Status to Store
  			await config.set(backendConfig);
  			await WEBUI_NAME.set(backendConfig.name);
@@ -3918,7 +4327,7 @@ index 6f349b791..c32374470 100644
  
  			if ($config) {
  				await setupSocket($config.features?.enable_websocket ?? true);
-@@ -607,7 +612,7 @@
+@@ -607,7 +613,7 @@
  
  <svelte:head>
  	<title>{$WEBUI_NAME}</title>

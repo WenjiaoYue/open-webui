@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { settings, playingNotificationSound, isLastActiveTab } from '$lib/stores';
+	import { settings, playingNotificationSound, isLastActiveTab, PROJECT_IMG } from '$lib/stores';
 	import DOMPurify from 'dompurify';
 
 	import { marked } from 'marked';
@@ -38,7 +38,9 @@
 	}}
 >
 	<div class="shrink-0 self-top -translate-y-0.5">
-		<img src={'/static/favicon.png'} alt="favicon" class="size-7 rounded-full" />
+		<img 
+		src={$PROJECT_IMG}
+		alt="favicon" class="size-7 rounded-full" />
 	</div>
 
 	<div>

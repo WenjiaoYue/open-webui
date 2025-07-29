@@ -7,6 +7,7 @@
 	import Marquee from './common/Marquee.svelte';
 	import SlideShow from './common/SlideShow.svelte';
 	import ArrowRightCircle from './icons/ArrowRightCircle.svelte';
+	import { PROJECT_IMG } from '$lib/stores';
 
 	export let show = true;
 	export let getStartedHandler = () => {};
@@ -46,7 +47,7 @@
 					<img
 						id="logo"
 						crossorigin="anonymous"
-						src="{WEBUI_BASE_URL}/static/favicon.png"
+						src={$PROJECT_IMG}
 						class=" w-6 rounded-full"
 						alt="logo"
 					/>
