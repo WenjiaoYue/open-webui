@@ -134,7 +134,7 @@
 							// Display the compressed image
 							profileImageUrl = compressedSrc;
 
-							profileImageInputElement.files = null;
+							profileImageInputElement.value = '';
 						};
 					};
 
