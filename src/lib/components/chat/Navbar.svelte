@@ -191,7 +191,7 @@
 
 				{#if $user.name === 'Guest'}
 					<button
-						class="flex py-2 px-3 w-full bg-[#1662c7] text-white hover:bg-gray-500 dark:hover:bg-gray-800 transition"
+						class=" flex cursor-pointer px-2 py-2  transition bg-[#1662c7] text-white hover:bg-gray-500"
 						on:click={async () => {
 							await userSignOut();
 							localStorage.removeItem('token');
