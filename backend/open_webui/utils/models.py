@@ -99,7 +99,7 @@ async def get_all_models(request, user: UserModel = None):
                     "arena": True,
                 }
             ]
-        models = models + arena_models
+        models = models
 
     global_action_ids = [
         function.id for function in Functions.get_global_action_functions()
